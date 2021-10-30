@@ -56,9 +56,9 @@ public class ControllerHandler
                     if(Minecraft.getInstance().screen == null && player.getVehicle() instanceof VehicleEntity)
                     {
                         VehicleEntity vehicle = (VehicleEntity) player.getVehicle();
-                        if(vehicle.canTowTrailer())
+                        if(vehicle.canTowTrailers())
                         {
-                            PacketHandler.instance.sendToServer(new MessageHitchTrailer(vehicle.getTrailer() == null));
+                            PacketHandler.getPlayChannel().sendToServer(new MessageHitchTrailer(vehicle.getTrailer() == null));
                         }
                         event.setCanceled(true);
                     }
@@ -88,16 +88,6 @@ public class ControllerHandler
                 default:
                     break;
             }
-        }
-    }
-
-    @SubscribeEvent
-    public void onControllerMove(ControllerEvent.Move event)
-    {
-        PlayerEntity player = Minecraft.getInstance().player;
-        if(player.getVehicle() instanceof VehicleEntity)
-        {
-            event.setCanceled(true);
         }
     }
 

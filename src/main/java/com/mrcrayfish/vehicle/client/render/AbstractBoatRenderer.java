@@ -1,22 +1,23 @@
 package com.mrcrayfish.vehicle.client.render;
 
 import com.mojang.blaze3d.matrix.MatrixStack;
-import com.mrcrayfish.vehicle.client.EntityRayTracer;
-import com.mrcrayfish.vehicle.common.entity.PartPosition;
+import com.mrcrayfish.vehicle.common.entity.Transform;
 import com.mrcrayfish.vehicle.entity.BoatEntity;
-import com.mrcrayfish.vehicle.entity.VehicleProperties;
+import com.mrcrayfish.vehicle.entity.properties.VehicleProperties;
+import com.mrcrayfish.vehicle.entity.vehicle.GoKartEntity;
 import net.minecraft.client.renderer.IRenderTypeBuffer;
+import net.minecraft.entity.EntityType;
 
 import javax.annotation.Nullable;
 
 /**
  * Author: MrCrayfish
  */
-public abstract class AbstractBoatRenderer<T extends BoatEntity & EntityRayTracer.IEntityRayTraceable> extends AbstractPoweredRenderer<T>
+public abstract class AbstractBoatRenderer<T extends BoatEntity> extends AbstractPoweredRenderer<T>
 {
-    public AbstractBoatRenderer(VehicleProperties defaultProperties)
+    public AbstractBoatRenderer(EntityType<T> type, VehicleProperties defaultProperties)
     {
-        super(defaultProperties);
+        super(type, defaultProperties);
     }
 
     @Override
@@ -25,21 +26,22 @@ public abstract class AbstractBoatRenderer<T extends BoatEntity & EntityRayTrace
         matrixStack.pushPose();
 
         VehicleProperties properties = this.vehiclePropertiesProperty.get(vehicle);
-        PartPosition bodyPosition = properties.getBodyPosition();
+        Transform bodyPosition = properties.getBodyTransform();
         matrixStack.mulPose(Axis.POSITIVE_X.rotationDegrees((float) bodyPosition.getRotX()));
         matrixStack.mulPose(Axis.POSITIVE_Y.rotationDegrees((float) bodyPosition.getRotY()));
         matrixStack.mulPose(Axis.POSITIVE_Z.rotationDegrees((float) bodyPosition.getRotZ()));
 
-        if(vehicle != null)
+        //TODO add back boat rotation
+        /*if(vehicle != null)
         {
             //Applies leaning rotation caused by turning
             float currentSpeedNormal = (vehicle.prevCurrentSpeed + (vehicle.currentSpeed - vehicle.prevCurrentSpeed) * partialTicks) / vehicle.getMaxSpeed();
-            float turnAngleNormal = (vehicle.prevTurnAngle + (vehicle.turnAngle - vehicle.prevTurnAngle) * partialTicks) / vehicle.getMaxTurnAngle();
+            float turnAngleNormal = (vehicle.prevTurnAngle + (vehicle.turnAngle - vehicle.prevTurnAngle) * partialTicks) / vehicle.getMaxSteeringAngle();
             matrixStack.mulPose(Axis.POSITIVE_Z.rotationDegrees(turnAngleNormal * currentSpeedNormal * -15F));
 
             //Makes the boat tilt up the faster it goes
             matrixStack.mulPose(Axis.POSITIVE_X.rotationDegrees(-8F * Math.min(1.0F, currentSpeedNormal)));
-        }
+        }*/
 
         //this.renderRotationLine(matrixStack, 0xFF0000);
 
@@ -64,8 +66,8 @@ public abstract class AbstractBoatRenderer<T extends BoatEntity & EntityRayTrace
         this.render(vehicle, matrixStack, renderTypeBuffer, partialTicks, light);
 
         this.renderEngine(vehicle, matrixStack, renderTypeBuffer, light);
-        this.renderFuelPort(vehicle, matrixStack, renderTypeBuffer, light);
-        this.renderKeyPort(vehicle, matrixStack, renderTypeBuffer, light);
+        this.renderFuelFiller(vehicle, matrixStack, renderTypeBuffer, light);
+        this.renderIgnition(vehicle, matrixStack, renderTypeBuffer, light);
 
         matrixStack.popPose();
     }

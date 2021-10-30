@@ -1,6 +1,8 @@
 package com.mrcrayfish.vehicle.entity;
 
 import com.mrcrayfish.vehicle.Config;
+import com.mrcrayfish.vehicle.entity.properties.TrailerProperties;
+import com.mrcrayfish.vehicle.entity.properties.VehicleProperties;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.MoverType;
@@ -24,9 +26,12 @@ public abstract class TrailerEntity extends VehicleEntity
 {
     public static final DataParameter<Integer> PULLING_ENTITY = EntityDataManager.defineId(TrailerEntity.class, DataSerializers.INT);
 
+    @Nullable
     private Entity pullingEntity;
 
+    @OnlyIn(Dist.CLIENT)
     public float wheelRotation;
+    @OnlyIn(Dist.CLIENT)
     public float prevWheelRotation;
 
     public TrailerEntity(EntityType<?> entityType, World worldIn)
@@ -43,26 +48,18 @@ public abstract class TrailerEntity extends VehicleEntity
     }
 
     @Override
-    public boolean isPickable()
-    {
-        return true;
-    }
-
-    @Override
     public void onUpdateVehicle()
     {
-        this.prevWheelRotation = this.wheelRotation;
-
         Vector3d motion = this.getDeltaMovement();
         this.setDeltaMovement(motion.x(), motion.y() - 0.08, motion.z());
 
-        if(this.level.isClientSide)
+        if(this.level.isClientSide())
         {
             int entityId = this.entityData.get(PULLING_ENTITY);
             if(entityId != -1)
             {
                 Entity entity = this.level.getEntity(this.entityData.get(PULLING_ENTITY));
-                if(entity instanceof PlayerEntity || (entity instanceof VehicleEntity && ((VehicleEntity) entity).canTowTrailer()))
+                if(entity instanceof PlayerEntity || (entity instanceof VehicleEntity && ((VehicleEntity) entity).canTowTrailers()))
                 {
                     this.pullingEntity = entity;
                 }
@@ -77,9 +74,9 @@ public abstract class TrailerEntity extends VehicleEntity
             }
         }
 
-        if(this.pullingEntity != null && !this.level.isClientSide)
+        if(this.pullingEntity != null && !this.level.isClientSide())
         {
-            double threshold = Config.SERVER.trailerDetachThreshold.get() + Math.abs(this.getHitchOffset() / 16.0) * this.getProperties().getBodyPosition().getScale();
+            double threshold = Config.SERVER.trailerDetachThreshold.get() + Math.abs(this.getHitchOffset() / 16.0) * this.getProperties().getBodyTransform().getScale();
             if(this.pullingEntity.distanceTo(this) > threshold)
             {
                 this.level.playSound(null, this.pullingEntity.blockPosition(), SoundEvents.ITEM_BREAK, SoundCategory.PLAYERS, 1.0F, 1.0F);
@@ -97,39 +94,30 @@ public abstract class TrailerEntity extends VehicleEntity
             }
             this.updatePullingMotion();
         }
-        else if(!level.isClientSide)
+        else if(!this.level.isClientSide())
         {
             motion = this.getDeltaMovement();
             this.move(MoverType.SELF, new Vector3d(motion.x() * 0.75, motion.y(), motion.z() * 0.75));
         }
 
         this.checkInsideBlocks();
-
-        float speed = (float) (Math.sqrt(Math.pow(this.getX() - this.xo, 2) + Math.pow(this.getY() - this.yo, 2) + Math.pow(this.getZ() - this.zo, 2)) * 20);
-        wheelRotation -= 90F * (speed / 10F);
     }
 
     private void updatePullingMotion()
     {
-        Vector3d towBar = pullingEntity.position();
-        if(pullingEntity instanceof VehicleEntity)
+        Vector3d towBar = this.pullingEntity.position();
+        if(this.pullingEntity instanceof VehicleEntity)
         {
-            VehicleEntity vehicle = (VehicleEntity) pullingEntity;
-            Vector3d towBarVec = vehicle.getProperties().getTowBarPosition();
-            towBarVec = new Vector3d(towBarVec.x * 0.0625, towBarVec.y * 0.0625, towBarVec.z * 0.0625 + vehicle.getProperties().getBodyPosition().getZ());
-            if(vehicle instanceof LandVehicleEntity)
-            {
-                LandVehicleEntity landVehicle = (LandVehicleEntity) vehicle;
-                towBar = towBar.add(towBarVec.yRot((float) Math.toRadians(-vehicle.yRot + landVehicle.additionalYaw)));
-            }
-            else
-            {
-                towBar = towBar.add(towBarVec.yRot((float) Math.toRadians(-vehicle.yRot)));
-            }
+            VehicleEntity vehicle = (VehicleEntity) this.pullingEntity;
+            Vector3d towBarVec = vehicle.getProperties().getTowBarOffset();
+            towBarVec = new Vector3d(towBarVec.x, towBarVec.y, towBarVec.z).scale(0.0625);
+            towBarVec = towBarVec.scale(vehicle.getProperties().getBodyTransform().getScale());
+            towBarVec = towBarVec.add(0, 0, vehicle.getProperties().getBodyTransform().getZ());
+            towBar = towBar.add(towBarVec.yRot((float) Math.toRadians(-vehicle.yRot)));
         }
 
         this.yRot = (float) Math.toDegrees(Math.atan2(towBar.z - this.getZ(), towBar.x - this.getX()) - Math.toRadians(90F));
-        double deltaRot = (double) (this.yRotO - this.yRot);
+        double deltaRot = this.yRotO - this.yRot;
         if (deltaRot < -180.0D)
         {
             this.yRotO += 360.0F;
@@ -139,7 +127,8 @@ public abstract class TrailerEntity extends VehicleEntity
             this.yRotO -= 360.0F;
         }
 
-        Vector3d vec = new Vector3d(0, 0, this.getHitchOffset() * 0.0625).yRot((float) Math.toRadians(-this.yRot)).add(towBar);
+        double bodyScale = this.getProperties().getBodyTransform().getScale();
+        Vector3d vec = new Vector3d(0, 0, this.getHitchOffset() * bodyScale * 0.0625).yRot((float) Math.toRadians(-this.yRot)).add(towBar);
         Vector3d motion = this.getDeltaMovement();
         this.setDeltaMovement(vec.x - this.getX(), motion.y(), vec.z - this.getZ());
         this.move(MoverType.SELF, this.getDeltaMovement());
@@ -153,7 +142,7 @@ public abstract class TrailerEntity extends VehicleEntity
 
     public boolean setPullingEntity(Entity pullingEntity)
     {
-        if(pullingEntity instanceof PlayerEntity || (pullingEntity instanceof VehicleEntity && pullingEntity.getVehicle() == null && ((VehicleEntity) pullingEntity).canTowTrailer()))
+        if(pullingEntity instanceof PlayerEntity || (pullingEntity instanceof VehicleEntity && pullingEntity.getVehicle() == null && ((VehicleEntity) pullingEntity).canTowTrailers()))
         {
             this.pullingEntity = pullingEntity;
             this.entityData.set(PULLING_ENTITY, pullingEntity.getId());
@@ -180,22 +169,48 @@ public abstract class TrailerEntity extends VehicleEntity
         this.lerpX = x;
         this.lerpY = y;
         this.lerpZ = z;
-        this.lerpYaw = (double) yaw;
-        this.lerpPitch = (double) pitch;
+        this.lerpYaw = yaw;
+        this.lerpPitch = pitch;
         this.lerpSteps = 1;
     }
 
-    @Override
-    public boolean canMountTrailer()
+    public final double getHitchOffset()
     {
-        return false;
+        return this.getTrailerProperties().getHitchOffset();
     }
 
-    public abstract double getHitchOffset();
+    protected TrailerProperties getTrailerProperties()
+    {
+        return this.getProperties().getExtended(TrailerProperties.class);
+    }
 
     @Override
     protected boolean canRide(Entity entityIn)
     {
         return false;
+    }
+
+    @Override
+    @OnlyIn(Dist.CLIENT)
+    protected void updateWheelRotations()
+    {
+        this.prevWheelRotation = this.wheelRotation;
+
+        VehicleProperties properties = this.getProperties();
+        Vector3d forward = Vector3d.directionFromRotation(this.getRotationVector());
+        Vector3d motion = new Vector3d(this.getX() - this.xo, 0, this.getZ() - this.zo);
+        double direction = forward.dot(motion.normalize());
+        float speed = (float) motion.length() * 20;
+        double vehicleScale = properties.getBodyTransform().getScale();
+        double wheelCircumference = 24.0 * vehicleScale * 1.25F;
+        double rotationSpeed = (speed * direction * 16F) / wheelCircumference;
+        this.wheelRotation -= rotationSpeed * 20F;
+    }
+
+    @Override
+    @OnlyIn(Dist.CLIENT)
+    public float getWheelRotation(@Nullable Wheel wheel, float partialTicks)
+    {
+        return this.prevWheelRotation + (this.wheelRotation - this.prevWheelRotation) * partialTicks;
     }
 }

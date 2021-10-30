@@ -1,13 +1,8 @@
 package com.mrcrayfish.vehicle.network.message;
 
-import com.mrcrayfish.obfuscate.common.data.SyncedPlayerData;
-import com.mrcrayfish.vehicle.entity.TrailerEntity;
-import com.mrcrayfish.vehicle.init.ModDataKeys;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.PlayerEntity;
+import com.mrcrayfish.vehicle.network.play.ServerPlayHandler;
 import net.minecraft.entity.player.ServerPlayerEntity;
 import net.minecraft.network.PacketBuffer;
-import net.minecraft.world.World;
 import net.minecraftforge.fml.network.NetworkEvent;
 
 import java.util.function.Supplier;
@@ -18,27 +13,24 @@ import java.util.function.Supplier;
 public class MessageAttachTrailer implements IMessage<MessageAttachTrailer>
 {
     private int trailerId;
-    private int entityId;
 
     public MessageAttachTrailer() {}
 
-    public MessageAttachTrailer(int trailerId, int entityId)
+    public MessageAttachTrailer(int trailerId)
     {
         this.trailerId = trailerId;
-        this.entityId = entityId;
     }
 
     @Override
     public void encode(MessageAttachTrailer message, PacketBuffer buffer)
     {
         buffer.writeInt(message.trailerId);
-        buffer.writeInt(message.entityId);
     }
 
     @Override
     public MessageAttachTrailer decode(PacketBuffer buffer)
     {
-        return new MessageAttachTrailer(buffer.readInt(), buffer.readInt());
+        return new MessageAttachTrailer(buffer.readInt());
     }
 
     @Override
@@ -49,20 +41,14 @@ public class MessageAttachTrailer implements IMessage<MessageAttachTrailer>
             ServerPlayerEntity player = supplier.get().getSender();
             if(player != null)
             {
-                World world = player.level;
-                Entity trailerEntity = world.getEntity(message.trailerId);
-                if(trailerEntity instanceof TrailerEntity)
-                {
-                    TrailerEntity trailer = (TrailerEntity) trailerEntity;
-                    Entity entity = world.getEntity(message.entityId);
-                    if(entity instanceof PlayerEntity && entity.getVehicle() == null)
-                    {
-                        trailer.setPullingEntity(entity);
-                        SyncedPlayerData.instance().set((PlayerEntity) entity, ModDataKeys.TRAILER, message.trailerId);
-                    }
-                }
+                ServerPlayHandler.handleAttachTrailerMessage(player, message);
             }
         });
         supplier.get().setPacketHandled(true);
+    }
+
+    public int getTrailerId()
+    {
+        return this.trailerId;
     }
 }

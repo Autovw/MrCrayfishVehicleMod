@@ -2,7 +2,7 @@ package com.mrcrayfish.vehicle.common;
 
 import com.google.common.collect.HashBiMap;
 import com.mrcrayfish.vehicle.entity.VehicleEntity;
-import com.mrcrayfish.vehicle.entity.VehicleProperties;
+import com.mrcrayfish.vehicle.entity.properties.VehicleProperties;
 import com.mrcrayfish.vehicle.network.PacketHandler;
 import com.mrcrayfish.vehicle.network.message.MessageSyncPlayerSeat;
 import net.minecraft.entity.player.PlayerEntity;
@@ -22,13 +22,11 @@ import java.util.UUID;
  */
 public class SeatTracker
 {
-    private final int maxSeatSize;
-    private HashBiMap<UUID, Integer> playerSeatMap = HashBiMap.create();
-    private WeakReference<VehicleEntity> vehicleRef;
+    private final HashBiMap<UUID, Integer> playerSeatMap = HashBiMap.create();
+    private final WeakReference<VehicleEntity> vehicleRef;
 
     public SeatTracker(VehicleEntity entity)
     {
-        this.maxSeatSize = entity.getProperties().getSeats().size();
         this.vehicleRef = new WeakReference<>(entity);
     }
 
@@ -41,6 +39,16 @@ public class SeatTracker
         return -1;
     }
 
+    private int getMaxSeatSize()
+    {
+        VehicleEntity vehicle = this.vehicleRef.get();
+        if(vehicle != null)
+        {
+            return vehicle.getProperties().getSeats().size();
+        }
+        return 0;
+    }
+
     /**
      * Sets the seat index for the corresponding player uuid. If the uuid already exists
      * in the seating map, it will automatically be updated to the new index.
@@ -50,19 +58,19 @@ public class SeatTracker
      */
     public void setSeatIndex(int index, UUID uuid)
     {
-        if(index < 0 || index >= this.maxSeatSize)
+        if(index < 0 || index >= this.getMaxSeatSize())
             return;
         this.playerSeatMap.forcePut(uuid, index);
         VehicleEntity vehicle = this.vehicleRef.get();
         if(vehicle != null && !vehicle.level.isClientSide)
         {
-            PacketHandler.instance.send(PacketDistributor.TRACKING_ENTITY.with(() -> vehicle), new MessageSyncPlayerSeat(vehicle.getId(), index, uuid));
+            PacketHandler.getPlayChannel().send(PacketDistributor.TRACKING_ENTITY.with(() -> vehicle), new MessageSyncPlayerSeat(vehicle.getId(), index, uuid));
         }
     }
 
     public boolean isSeatAvailable(int index)
     {
-        if(index < 0 || index >= this.maxSeatSize)
+        if(index < 0 || index >= this.getMaxSeatSize())
             return false;
         if(!this.playerSeatMap.inverse().containsKey(index))
             return true;
@@ -125,8 +133,8 @@ public class SeatTracker
 
                 /* Get the real world distance to the seat and check if it's the closest */
                 Seat seat = seats.get(i);
-                Vector3d seatVec = seat.getPosition().add(0, properties.getAxleOffset() + properties.getWheelOffset(), 0).scale(properties.getBodyPosition().getScale()).multiply(-1, 1, 1).scale(0.0625);
-                seatVec = seatVec.yRot(-(vehicle.getModifiedRotationYaw()) * 0.017453292F);
+                Vector3d seatVec = seat.getPosition().add(0, properties.getAxleOffset() + properties.getWheelOffset(), 0).scale(properties.getBodyTransform().getScale()).multiply(-1, 1, 1).scale(0.0625);
+                seatVec = seatVec.yRot(-(vehicle.yRot) * 0.017453292F);
                 seatVec = seatVec.add(vehicle.position());
                 double distance = player.distanceToSqr(seatVec.x, seatVec.y - player.getBbHeight() / 2F, seatVec.z);
                 if(closestSeatIndex == -1 || distance < closestDistance)

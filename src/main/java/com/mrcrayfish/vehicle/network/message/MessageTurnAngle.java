@@ -1,7 +1,6 @@
 package com.mrcrayfish.vehicle.network.message;
 
-import com.mrcrayfish.vehicle.entity.PoweredVehicleEntity;
-import net.minecraft.entity.Entity;
+import com.mrcrayfish.vehicle.network.play.ServerPlayHandler;
 import net.minecraft.entity.player.ServerPlayerEntity;
 import net.minecraft.network.PacketBuffer;
 import net.minecraftforge.fml.network.NetworkEvent;
@@ -39,13 +38,14 @@ public class MessageTurnAngle implements IMessage<MessageTurnAngle>
 			ServerPlayerEntity player = supplier.get().getSender();
 			if(player != null)
 			{
-				Entity riding = player.getVehicle();
-				if(riding instanceof PoweredVehicleEntity)
-				{
-					((PoweredVehicleEntity) riding).setTargetTurnAngle(message.angle);
-				}
+				ServerPlayHandler.handleTurnAngleMessage(player, message);
 			}
 		});
 		supplier.get().setPacketHandled(true);
+	}
+
+	public float getAngle()
+	{
+		return this.angle;
 	}
 }

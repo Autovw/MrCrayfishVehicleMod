@@ -6,7 +6,8 @@ import com.mrcrayfish.vehicle.common.VehicleRegistry;
 import com.mrcrayfish.vehicle.entity.EngineTier;
 import com.mrcrayfish.vehicle.entity.PoweredVehicleEntity;
 import com.mrcrayfish.vehicle.entity.VehicleEntity;
-import com.mrcrayfish.vehicle.entity.VehicleProperties;
+import com.mrcrayfish.vehicle.entity.properties.PoweredProperties;
+import com.mrcrayfish.vehicle.entity.properties.VehicleProperties;
 import com.mrcrayfish.vehicle.init.ModItems;
 import com.mrcrayfish.vehicle.init.ModSounds;
 import com.mrcrayfish.vehicle.init.ModTileEntities;
@@ -118,7 +119,12 @@ public class VehicleCrateTileEntity extends TileEntitySynced implements ITickabl
                             }
                             if(this.entity instanceof VehicleEntity)
                             {
-                                ((VehicleEntity) this.entity).setColor(this.color);
+                                VehicleEntity vehicleEntity = (VehicleEntity) this.entity;
+                                vehicleEntity.setColor(this.color);
+                                if(!this.wheelStack.isEmpty())
+                                {
+                                    vehicleEntity.setWheelStack(this.wheelStack);
+                                }
                             }
                             if(this.entity instanceof PoweredVehicleEntity)
                             {
@@ -126,10 +132,6 @@ public class VehicleCrateTileEntity extends TileEntitySynced implements ITickabl
                                 if(this.engineStack != null)
                                 {
                                     entityPoweredVehicle.setEngineStack(this.engineStack);
-                                }
-                                if(!this.wheelStack.isEmpty())
-                                {
-                                    entityPoweredVehicle.setWheelStack(this.wheelStack);
                                 }
                             }
                         }
@@ -166,7 +168,12 @@ public class VehicleCrateTileEntity extends TileEntitySynced implements ITickabl
                     {
                         if(entity instanceof VehicleEntity)
                         {
-                            ((VehicleEntity) entity).setColor(this.color);
+                            VehicleEntity vehicleEntity = (VehicleEntity) entity;
+                            vehicleEntity.setColor(this.color);
+                            if(!this.wheelStack.isEmpty())
+                            {
+                                vehicleEntity.setWheelStack(this.wheelStack);
+                            }
                         }
                         if(this.opener != null && entity instanceof PoweredVehicleEntity)
                         {
@@ -175,10 +182,6 @@ public class VehicleCrateTileEntity extends TileEntitySynced implements ITickabl
                             if(!this.engineStack.isEmpty())
                             {
                                 poweredVehicle.setEngineStack(this.engineStack);
-                            }
-                            if(!this.wheelStack.isEmpty())
-                            {
-                                poweredVehicle.setWheelStack(this.wheelStack);
                             }
                         }
                         entity.absMoveTo(this.worldPosition.getX() + 0.5, this.worldPosition.getY(), this.worldPosition.getZ() + 0.5, facing.get2DDataValue() * 90F + 180F, 0F);
@@ -210,7 +213,7 @@ public class VehicleCrateTileEntity extends TileEntitySynced implements ITickabl
         else if(compound.getBoolean("Creative"))
         {
             VehicleProperties properties = VehicleProperties.get(this.entityId);
-            EngineItem engineItem = VehicleRegistry.getEngineItem(properties.getEngineType(), EngineTier.IRON);
+            EngineItem engineItem = VehicleRegistry.getEngineItem(properties.getExtended(PoweredProperties.class).getEngineType(), EngineTier.IRON);
             this.engineStack = engineItem != null ? new ItemStack(engineItem) : ItemStack.EMPTY;
         }
         if(compound.contains("WheelStack", Constants.NBT.TAG_COMPOUND))

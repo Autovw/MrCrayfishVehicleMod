@@ -3,7 +3,6 @@ package com.mrcrayfish.vehicle.entity;
 import com.mrcrayfish.vehicle.item.WheelItem;
 import net.minecraft.item.ItemStack;
 
-import javax.annotation.Nullable;
 import java.util.Optional;
 
 /**
@@ -11,17 +10,27 @@ import java.util.Optional;
  */
 public interface IWheelType
 {
-    default float getRoadMultiplier()
+    default float getRoadFrictionFactor()
     {
         return 1.0F;
     }
 
-    default float getDirtMultiplier()
+    default float getDirtFrictionFactor()
     {
         return 1.0F;
     }
 
-    default float getSnowMultiplier()
+    default float getSnowFrictionFactor()
+    {
+        return 1.0F;
+    }
+
+    default float getBaseTraction()
+    {
+        return 1.0F;
+    }
+
+    default float getSlideTraction()
     {
         return 1.0F;
     }

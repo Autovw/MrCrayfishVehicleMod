@@ -1,17 +1,20 @@
 package com.mrcrayfish.vehicle.client.render.vehicle;
 
 import com.mojang.blaze3d.matrix.MatrixStack;
-import com.mrcrayfish.vehicle.client.EntityRayTracer;
 import com.mrcrayfish.vehicle.client.model.SpecialModels;
+import com.mrcrayfish.vehicle.client.raytrace.RayTraceTransforms;
+import com.mrcrayfish.vehicle.client.raytrace.TransformHelper;
 import com.mrcrayfish.vehicle.client.render.AbstractTrailerRenderer;
+import com.mrcrayfish.vehicle.client.render.Axis;
 import com.mrcrayfish.vehicle.common.inventory.StorageInventory;
-import com.mrcrayfish.vehicle.entity.VehicleProperties;
+import com.mrcrayfish.vehicle.entity.properties.VehicleProperties;
 import com.mrcrayfish.vehicle.entity.trailer.FertilizerTrailerEntity;
 import com.mrcrayfish.vehicle.util.RenderUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.IRenderTypeBuffer;
 import net.minecraft.client.renderer.model.ItemCameraTransforms;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.entity.EntityType;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.math.vector.Vector3f;
 
@@ -24,17 +27,15 @@ public class FertilizerTrailerRenderer extends AbstractTrailerRenderer<Fertilize
 {
     protected final PropertyFunction<FertilizerTrailerEntity, StorageInventory> storageProperty = new PropertyFunction<>(FertilizerTrailerEntity::getInventory, null);
 
-    public FertilizerTrailerRenderer(VehicleProperties defaultProperties)
+    public FertilizerTrailerRenderer(EntityType<FertilizerTrailerEntity> type, VehicleProperties defaultProperties)
     {
-        super(defaultProperties);
+        super(type, defaultProperties);
     }
 
     @Override
     protected void render(@Nullable FertilizerTrailerEntity vehicle, MatrixStack matrixStack, IRenderTypeBuffer renderTypeBuffer, float partialTicks, int light)
     {
         this.renderDamagedPart(vehicle, SpecialModels.FERTILIZER_TRAILER.getModel(), matrixStack, renderTypeBuffer, light);
-        this.renderWheel(vehicle, matrixStack, renderTypeBuffer, false, -11.5F * 0.0625F, -0.5F, 0.0F, 1.25F, partialTicks, light);
-        this.renderWheel(vehicle, matrixStack, renderTypeBuffer, true, 11.5F * 0.0625F, -0.5F, 0.0F, 1.25F, partialTicks, light);
 
         StorageInventory inventory = this.storageProperty.get(vehicle);
         if(inventory != null)
@@ -84,11 +85,7 @@ public class FertilizerTrailerRenderer extends AbstractTrailerRenderer<Fertilize
         {
             matrixStack.translate(0, -0.5, -0.4375);
             matrixStack.mulPose(Vector3f.ZP.rotationDegrees(90F));
-            if(vehicle != null)
-            {
-                float wheelRotation = vehicle.prevWheelRotation + (vehicle.wheelRotation - vehicle.prevWheelRotation) * partialTicks;
-                matrixStack.mulPose(Vector3f.XP.rotationDegrees(-wheelRotation));
-            }
+            matrixStack.mulPose(Axis.POSITIVE_X.rotationDegrees(-this.getWheelRotation(vehicle, null, partialTicks)));
             matrixStack.scale((float) 1.25, (float) 1.25, (float) 1.25);
             RenderUtil.renderColoredModel(SpecialModels.SEED_SPIKER.getModel(), ItemCameraTransforms.TransformType.NONE, false, matrixStack, renderTypeBuffer, -1, light, OverlayTexture.NO_OVERLAY);
         }
@@ -97,11 +94,11 @@ public class FertilizerTrailerRenderer extends AbstractTrailerRenderer<Fertilize
 
     @Nullable
     @Override
-    public EntityRayTracer.IRayTraceTransforms getRayTraceTransforms()
+    public RayTraceTransforms getRayTraceTransforms()
     {
         return (tracer, transforms, parts) ->
         {
-            EntityRayTracer.createTransformListForPart(SpecialModels.FERTILIZER_TRAILER, parts, transforms);
+            TransformHelper.createTransformListForPart(SpecialModels.FERTILIZER_TRAILER, parts, transforms);
         };
     }
 }

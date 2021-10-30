@@ -1,27 +1,32 @@
 package com.mrcrayfish.vehicle.client.render.vehicle;
 
 import com.mojang.blaze3d.matrix.MatrixStack;
-import com.mrcrayfish.vehicle.client.EntityRayTracer;
 import com.mrcrayfish.vehicle.client.model.SpecialModels;
-import com.mrcrayfish.vehicle.client.render.AbstractLandVehicleRenderer;
+import com.mrcrayfish.vehicle.client.raytrace.MatrixTransform;
+import com.mrcrayfish.vehicle.client.raytrace.RayTraceTransforms;
+import com.mrcrayfish.vehicle.client.raytrace.TransformHelper;
+import com.mrcrayfish.vehicle.client.render.AbstractHelicopterRenderer;
 import com.mrcrayfish.vehicle.client.render.Axis;
-import com.mrcrayfish.vehicle.entity.VehicleProperties;
+import com.mrcrayfish.vehicle.entity.properties.PoweredProperties;
+import com.mrcrayfish.vehicle.entity.properties.VehicleProperties;
 import com.mrcrayfish.vehicle.entity.vehicle.GolfCartEntity;
 import com.mrcrayfish.vehicle.init.ModEntities;
 import net.minecraft.client.renderer.IRenderTypeBuffer;
 import net.minecraft.client.renderer.entity.model.PlayerModel;
+import net.minecraft.entity.EntityType;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.math.vector.Vector3f;
 
 import javax.annotation.Nullable;
 
 /**
  * Author: MrCrayfish
  */
-public class GolfCartRenderer extends AbstractLandVehicleRenderer<GolfCartEntity>
+public class GolfCartRenderer extends AbstractHelicopterRenderer<GolfCartEntity>
 {
-    public GolfCartRenderer(VehicleProperties defaultProperties)
+    public GolfCartRenderer(EntityType<GolfCartEntity> type, VehicleProperties defaultProperties)
     {
-        super(defaultProperties);
+        super(type, defaultProperties);
     }
 
     @Override
@@ -40,13 +45,10 @@ public class GolfCartRenderer extends AbstractLandVehicleRenderer<GolfCartEntity
         matrixStack.scale(0.95F, 0.95F, 0.95F);
 
         // Rotates the steering wheel based on the wheel angle
-        if(vehicle != null)
-        {
-            float wheelAngle = vehicle.prevWheelAngle + (vehicle.wheelAngle - vehicle.prevWheelAngle) * partialTicks;
-            float wheelAngleNormal = wheelAngle / 45F;
-            float turnRotation = wheelAngleNormal * 25F;
-            matrixStack.mulPose(Axis.POSITIVE_Y.rotationDegrees(turnRotation));
-        }
+        float wheelAngle = this.wheelAngleProperty.get(vehicle, partialTicks);
+        float maxSteeringAngle = this.vehiclePropertiesProperty.get(vehicle).getExtended(PoweredProperties.class).getMaxSteeringAngle();
+        float steeringWheelRotation = (wheelAngle / maxSteeringAngle) * 25F;
+        matrixStack.mulPose(Vector3f.YP.rotationDegrees(steeringWheelRotation));
 
         this.renderDamagedPart(vehicle, SpecialModels.GO_KART_STEERING_WHEEL.getModel(), matrixStack, renderTypeBuffer, light);
 
@@ -63,30 +65,30 @@ public class GolfCartRenderer extends AbstractLandVehicleRenderer<GolfCartEntity
 
         if(entity.getControllingPassenger() == player)
         {
-            float wheelAngle = entity.prevRenderWheelAngle + (entity.renderWheelAngle - entity.prevRenderWheelAngle) * partialTicks;
-            float wheelAngleNormal = wheelAngle / 45F;
-            float turnRotation = wheelAngleNormal * 6F;
-            model.rightArm.xRot = (float) Math.toRadians(-65F - turnRotation);
+            float wheelAngle = this.wheelAngleProperty.get(entity, partialTicks);
+            float maxSteeringAngle = this.vehiclePropertiesProperty.get(entity).getExtended(PoweredProperties.class).getMaxSteeringAngle();
+            float steeringWheelRotation = (wheelAngle / maxSteeringAngle) * 25F / 2F;
+            model.rightArm.xRot = (float) Math.toRadians(-65F - steeringWheelRotation);
             model.rightArm.yRot = (float) Math.toRadians(-7F);
-            model.leftArm.xRot = (float) Math.toRadians(-65F + turnRotation);
+            model.leftArm.xRot = (float) Math.toRadians(-65F + steeringWheelRotation);
             model.leftArm.yRot = (float) Math.toRadians(7F);
         }
     }
 
     @Nullable
     @Override
-    public EntityRayTracer.IRayTraceTransforms getRayTraceTransforms()
+    public RayTraceTransforms getRayTraceTransforms()
     {
         return (tracer, transforms, parts) ->
         {
-            EntityRayTracer.createTransformListForPart(SpecialModels.GOLF_CART_BODY, parts, transforms);
-            EntityRayTracer.createTransformListForPart(SpecialModels.GO_KART_STEERING_WHEEL, parts, transforms,
-                    EntityRayTracer.MatrixTransformation.createTranslation(-0.345F, 0.425F, 0.1F),
-                    EntityRayTracer.MatrixTransformation.createRotation(Axis.POSITIVE_X, -45F),
-                    EntityRayTracer.MatrixTransformation.createTranslation(0.0F, -0.02F, 0.0F),
-                    EntityRayTracer.MatrixTransformation.createScale(0.95F));
-            EntityRayTracer.createFuelPartTransforms(ModEntities.GOLF_CART.get(), SpecialModels.FUEL_DOOR_CLOSED, parts, transforms);
-            EntityRayTracer.createKeyPortTransforms(ModEntities.GOLF_CART.get(), parts, transforms);
+            TransformHelper.createTransformListForPart(SpecialModels.GOLF_CART_BODY, parts, transforms);
+            TransformHelper.createTransformListForPart(SpecialModels.GO_KART_STEERING_WHEEL, parts, transforms,
+                    MatrixTransform.translate(-0.345F, 0.425F, 0.1F),
+                    MatrixTransform.rotate(Axis.POSITIVE_X.rotationDegrees(-45F)),
+                    MatrixTransform.translate(0.0F, -0.02F, 0.0F),
+                    MatrixTransform.scale(0.95F));
+            TransformHelper.createFuelFillerTransforms(ModEntities.GOLF_CART.get(), SpecialModels.FUEL_DOOR_CLOSED, parts, transforms);
+            TransformHelper.createIgnitionTransforms(ModEntities.GOLF_CART.get(), parts, transforms);
         };
     }
 }

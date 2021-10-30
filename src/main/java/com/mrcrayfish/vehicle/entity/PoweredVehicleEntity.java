@@ -4,13 +4,10 @@ import com.mrcrayfish.obfuscate.common.data.SyncedPlayerData;
 import com.mrcrayfish.vehicle.Config;
 import com.mrcrayfish.vehicle.block.VehicleCrateBlock;
 import com.mrcrayfish.vehicle.client.VehicleHelper;
-import com.mrcrayfish.vehicle.client.model.ISpecialModel;
-import com.mrcrayfish.vehicle.client.model.SpecialModels;
-import com.mrcrayfish.vehicle.common.ItemLookup;
-import com.mrcrayfish.vehicle.common.Seat;
 import com.mrcrayfish.vehicle.common.SurfaceHelper;
-import com.mrcrayfish.vehicle.common.entity.PartPosition;
-import com.mrcrayfish.vehicle.entity.vehicle.BumperCarEntity;
+import com.mrcrayfish.vehicle.common.entity.Transform;
+import com.mrcrayfish.vehicle.entity.properties.PoweredProperties;
+import com.mrcrayfish.vehicle.entity.properties.VehicleProperties;
 import com.mrcrayfish.vehicle.init.ModDataKeys;
 import com.mrcrayfish.vehicle.init.ModItems;
 import com.mrcrayfish.vehicle.init.ModSounds;
@@ -19,18 +16,16 @@ import com.mrcrayfish.vehicle.item.EngineItem;
 import com.mrcrayfish.vehicle.item.JerryCanItem;
 import com.mrcrayfish.vehicle.item.WheelItem;
 import com.mrcrayfish.vehicle.network.PacketHandler;
-import com.mrcrayfish.vehicle.network.message.MessageAccelerating;
+import com.mrcrayfish.vehicle.network.datasync.VehicleDataValue;
+import com.mrcrayfish.vehicle.network.message.MessageHandbrake;
 import com.mrcrayfish.vehicle.network.message.MessageHorn;
-import com.mrcrayfish.vehicle.network.message.MessagePower;
+import com.mrcrayfish.vehicle.network.message.MessageThrottle;
 import com.mrcrayfish.vehicle.network.message.MessageTurnAngle;
-import com.mrcrayfish.vehicle.network.message.MessageTurnDirection;
 import com.mrcrayfish.vehicle.tileentity.GasPumpTankTileEntity;
 import com.mrcrayfish.vehicle.tileentity.GasPumpTileEntity;
 import com.mrcrayfish.vehicle.util.CommonUtils;
 import com.mrcrayfish.vehicle.util.InventoryUtil;
 import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.GrassBlock;
 import net.minecraft.block.material.Material;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.Entity;
@@ -74,6 +69,7 @@ import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandlerItem;
 import net.minecraftforge.fluids.capability.templates.FluidTank;
 import net.minecraftforge.fml.network.NetworkHooks;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -85,66 +81,45 @@ import java.util.UUID;
  */
 public abstract class PoweredVehicleEntity extends VehicleEntity implements IInventoryChangedListener, INamedContainerProvider
 {
-    protected static final DataParameter<Float> CURRENT_SPEED = EntityDataManager.defineId(PoweredVehicleEntity.class, DataSerializers.FLOAT);
-    protected static final DataParameter<Float> MAX_SPEED = EntityDataManager.defineId(PoweredVehicleEntity.class, DataSerializers.FLOAT);
-    protected static final DataParameter<Float> ACCELERATION_SPEED = EntityDataManager.defineId(PoweredVehicleEntity.class, DataSerializers.FLOAT);
-    protected static final DataParameter<Float> POWER = EntityDataManager.defineId(PoweredVehicleEntity.class, DataSerializers.FLOAT);
-    protected static final DataParameter<Integer> TURN_DIRECTION = EntityDataManager.defineId(PoweredVehicleEntity.class, DataSerializers.INT);
-    protected static final DataParameter<Float> TARGET_TURN_ANGLE = EntityDataManager.defineId(PoweredVehicleEntity.class, DataSerializers.FLOAT);
-    protected static final DataParameter<Integer> TURN_SENSITIVITY = EntityDataManager.defineId(PoweredVehicleEntity.class, DataSerializers.INT);
-    protected static final DataParameter<Integer> MAX_TURN_ANGLE = EntityDataManager.defineId(PoweredVehicleEntity.class, DataSerializers.INT);
-    protected static final DataParameter<Integer> ACCELERATION_DIRECTION = EntityDataManager.defineId(PoweredVehicleEntity.class, DataSerializers.INT);
+    protected static final int MAX_WHEELIE_TICKS = 10;
+
+    protected static final DataParameter<Float> THROTTLE = EntityDataManager.defineId(PoweredVehicleEntity.class, DataSerializers.FLOAT);
+    protected static final DataParameter<Boolean> HANDBRAKE = EntityDataManager.defineId(PoweredVehicleEntity.class, DataSerializers.BOOLEAN);
+    protected static final DataParameter<Float> STEERING_ANGLE = EntityDataManager.defineId(PoweredVehicleEntity.class, DataSerializers.FLOAT);
     protected static final DataParameter<Boolean> HORN = EntityDataManager.defineId(PoweredVehicleEntity.class, DataSerializers.BOOLEAN);
-    protected static final DataParameter<Boolean> REQUIRES_FUEL = EntityDataManager.defineId(PoweredVehicleEntity.class, DataSerializers.BOOLEAN);
     protected static final DataParameter<Float> CURRENT_FUEL = EntityDataManager.defineId(PoweredVehicleEntity.class, DataSerializers.FLOAT);
-    protected static final DataParameter<Float> FUEL_CAPACITY = EntityDataManager.defineId(PoweredVehicleEntity.class, DataSerializers.FLOAT);
     protected static final DataParameter<Boolean> NEEDS_KEY = EntityDataManager.defineId(PoweredVehicleEntity.class, DataSerializers.BOOLEAN);
     protected static final DataParameter<ItemStack> KEY_STACK = EntityDataManager.defineId(PoweredVehicleEntity.class, DataSerializers.ITEM_STACK);
     protected static final DataParameter<ItemStack> ENGINE_STACK = EntityDataManager.defineId(PoweredVehicleEntity.class, DataSerializers.ITEM_STACK);
-    protected static final DataParameter<ItemStack> WHEEL_STACK = EntityDataManager.defineId(PoweredVehicleEntity.class, DataSerializers.ITEM_STACK);
 
-    public float prevCurrentSpeed;
-    public float currentSpeed;
-    public float speedMultiplier;
-    public boolean boosting;
-    public int boostTimer;
-    public boolean launching;
-    public int launchingTimer;
-    public boolean disableFallDamage;
-    public float fuelConsumption = 0.25F;
+    // Sensitive variables used for physics
+    private final VehicleDataValue<Float> throttle = new VehicleDataValue<>(this, THROTTLE);
+    private final VehicleDataValue<Boolean> handbrake = new VehicleDataValue<>(this, HANDBRAKE);
+    private final VehicleDataValue<Float> steeringAngle = new VehicleDataValue<>(this, STEERING_ANGLE);
+
+    protected UUID owner;
+    protected float speedMultiplier;
+    protected boolean boosting;
+    protected int boostTimer;
+    protected float boostStrength;
+    protected boolean launching;
+    protected int launchingTimer;
+    protected boolean disableFallDamage;
     protected boolean charging;
-    protected AccelerationDirection prevAcceleration;
-
-    protected double[] wheelPositions;
-    protected boolean wheelsOnGround = true;
-    public float turnAngle;
-    public float prevTurnAngle;
-
-    public float deltaYaw;
-    public float wheelAngle;
-    public float prevWheelAngle; //TODO can remove use render wheel angle instead
-
-    @OnlyIn(Dist.CLIENT)
-    public float targetWheelAngle;
-    @OnlyIn(Dist.CLIENT)
-    public float renderWheelAngle;
-    @OnlyIn(Dist.CLIENT)
-    public float prevRenderWheelAngle;
-    @OnlyIn(Dist.CLIENT)
-    public int wheelieCount;
-    @OnlyIn(Dist.CLIENT)
-    public int prevWheelieCount;
-
-    public float vehicleMotionX;
-    public float vehicleMotionY;
-    public float vehicleMotionZ;
-
-    private UUID owner;
-
+    protected float chargingAmount;
+    private double[] wheelPositions;
+    private boolean fueling;
+    protected Vector3d motion = Vector3d.ZERO;
     private Inventory vehicleInventory;
 
-    private FuelPortType fuelPortType;
-    private boolean fueling;
+    @OnlyIn(Dist.CLIENT)
+    protected float renderWheelAngle;
+    @OnlyIn(Dist.CLIENT)
+    protected float prevRenderWheelAngle;
+    @OnlyIn(Dist.CLIENT)
+    protected float enginePitch;
+    @OnlyIn(Dist.CLIENT)
+    protected float engineVolume;
 
     protected PoweredVehicleEntity(EntityType<?> entityType, World worldIn)
     {
@@ -162,44 +137,31 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
     public void defineSynchedData()
     {
         super.defineSynchedData();
-        this.entityData.define(CURRENT_SPEED, 0F);
-        this.entityData.define(MAX_SPEED, 10F);
-        this.entityData.define(ACCELERATION_SPEED, 0.5F);
-        this.entityData.define(POWER, 1.0F);
-        this.entityData.define(TURN_DIRECTION, TurnDirection.FORWARD.ordinal());
-        this.entityData.define(TARGET_TURN_ANGLE, 0F);
-        this.entityData.define(TURN_SENSITIVITY, 6);
-        this.entityData.define(MAX_TURN_ANGLE, 35);
-        this.entityData.define(ACCELERATION_DIRECTION, AccelerationDirection.NONE.ordinal());
+        this.entityData.define(THROTTLE, 0F);
+        this.entityData.define(HANDBRAKE, false);
+        this.entityData.define(STEERING_ANGLE, 0F);
         this.entityData.define(HORN, false);
-        this.entityData.define(REQUIRES_FUEL, Config.SERVER.fuelEnabled.get());
         this.entityData.define(CURRENT_FUEL, 0F);
-        this.entityData.define(FUEL_CAPACITY, 15000F);
         this.entityData.define(NEEDS_KEY, false);
         this.entityData.define(KEY_STACK, ItemStack.EMPTY);
         this.entityData.define(ENGINE_STACK, ItemStack.EMPTY);
-        this.entityData.define(WHEEL_STACK, ItemStack.EMPTY);
-
-        List<Wheel> wheels = this.getProperties().getWheels();
-        if(wheels != null && wheels.size() > 0)
-        {
-            this.wheelPositions = new double[wheels.size() * 3];
-        }
     }
 
-    public abstract SoundEvent getEngineSound();
-
-    //TODO ability to change with nbt
-    public SoundEvent getHornSound()
+    public final SoundEvent getEngineSound()
     {
-        return ModSounds.ENTITY_VEHICLE_HORN.get();
+        return ForgeRegistries.SOUND_EVENTS.getValue(this.getPoweredProperties().getEngineSound());
+    }
+
+    public final SoundEvent getHornSound()
+    {
+        return ForgeRegistries.SOUND_EVENTS.getValue(this.getPoweredProperties().getHornSound());
     }
 
     public void playFuelPortOpenSound()
     {
         if(!this.fueling)
         {
-            this.fuelPortType.playOpenSound();
+            this.getFuelFillerType().playOpenSound();
             this.fueling = true;
         }
     }
@@ -208,37 +170,19 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
     {
         if(this.fueling)
         {
-            this.fuelPortType.playCloseSound();
+            this.getFuelFillerType().playCloseSound();
             this.fueling = false;
         }
     }
 
-    public float getMinEnginePitch()
+    public final float getMinEnginePitch()
     {
-        return 0.5F;
+        return this.getPoweredProperties().getMinEnginePitch();
     }
 
-    public float getMaxEnginePitch()
+    public final float getMaxEnginePitch()
     {
-        return 1.2F;
-    }
-
-    @Override
-    public boolean isPickable()
-    {
-        return true;
-    }
-
-    @Override
-    public void onClientInit()
-    {
-        super.onClientInit();
-        this.setFuelPortType(FuelPortType.DEFAULT);
-    }
-
-    protected void setFuelPortType(FuelPortType fuelPortType)
-    {
-        this.fuelPortType = fuelPortType;
+        return this.getPoweredProperties().getMaxEnginePitch();
     }
 
     public void fuelVehicle(PlayerEntity player, Hand hand)
@@ -264,7 +208,7 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
             if(stack.isEmpty())
                 return;
 
-            stack.setAmount(this.addFuel(stack.getAmount()));
+            stack.setAmount(this.addEnergy(stack.getAmount()));
             if(stack.getAmount() <= 0)
                 return;
 
@@ -287,9 +231,9 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
             return;
 
         int transferAmount = Math.min(handler.getFluidInTank(0).getAmount(), jerryCan.getFillRate());
-        transferAmount = (int) Math.min(Math.floor(this.getFuelCapacity() - this.getCurrentFuel()), transferAmount);
+        transferAmount = (int) Math.min(Math.floor(this.getEnergyCapacity() - this.getCurrentEnergy()), transferAmount);
         handler.drain(transferAmount, IFluidHandler.FluidAction.EXECUTE);
-        this.addFuel(transferAmount);
+        this.addEnergy(transferAmount);
     }
 
     @Override
@@ -356,11 +300,7 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
     @Override
     public void onUpdateVehicle()
     {
-        this.prevCurrentSpeed = this.currentSpeed;
-        this.prevTurnAngle = this.turnAngle;
-        this.prevWheelAngle = this.wheelAngle;
-
-        if(this.level.isClientSide)
+        if(this.level.isClientSide())
         {
             this.onClientUpdate();
         }
@@ -372,60 +312,46 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
         {
             this.createParticles();
         }
-
-        /* Makes the vehicle boost slightly from charging up */
-        if(this.charging && this.prevAcceleration == AccelerationDirection.CHARGING && this.getAcceleration() != this.prevAcceleration && this.getRealSpeed() > 0.95F)
+        else
         {
-            this.releaseCharge();
+            this.setThrottle(0F);
+            this.steeringAngle.set(this, this.steeringAngle.get(this) * 0.85F);
         }
 
         /* Handle the current speed of the vehicle based on rider's forward movement */
-        this.updateGroundState();
-        this.updateSpeed();
         this.updateTurning();
-        this.updateVehicle();
-        this.setSpeed(this.currentSpeed);
+        this.onVehicleTick();
 
-        /* Updates the direction of the vehicle */
-        VehicleProperties properties = this.getProperties();
-        if(properties.getFrontAxelVec() == null || properties.getRearAxelVec() == null)
-        {
-            this.yRot -= this.deltaYaw;
-        }
-
-        /* Updates the vehicle motion and applies it on top of the normal motion */
+        /* Updates the vehicle motion */
         this.updateVehicleMotion();
 
+        /* Updates the rotation and fixes the old rotation */
         this.setRot(this.yRot, this.xRot);
-        double deltaRot = (double) (this.yRotO - this.yRot);
-        if (deltaRot < -180.0D)
-        {
-            this.yRotO += 360.0F;
-        }
-        else if (deltaRot >= 180.0D)
-        {
-            this.yRotO -= 360.0F;
-        }
+        double deltaRot = this.yRotO - this.yRot;
+        this.yRotO += (deltaRot < -180) ? 360F : (deltaRot >= 180) ? -360F : 0F;
+
         this.updateWheelPositions();
 
-        this.move(MoverType.SELF, this.getDeltaMovement().add(this.vehicleMotionX, this.vehicleMotionY, this.vehicleMotionZ));
+        // Move vehicle
+        this.move(MoverType.SELF, this.getDeltaMovement().add(this.motion));
 
         /* Reduces the motion and speed multiplier */
         if(this.onGround)
         {
-            this.setDeltaMovement(this.getDeltaMovement().multiply(0.8, 0.98, 0.8));
+            this.setDeltaMovement(this.getDeltaMovement().multiply(0.75, 0.0, 0.75));
         }
         else
         {
-            this.setDeltaMovement(this.getDeltaMovement().multiply(0.98, 0.98, 0.98));
+            this.setDeltaMovement(this.getDeltaMovement().multiply(0.98, 1.0, 0.98));
         }
 
-        if(this.boostTimer > 0)
+        if(this.boostTimer > 0 && this.getThrottle() > 0)
         {
             this.boostTimer--;
         }
         else
         {
+            this.boostTimer = 0;
             this.boosting = false;
             this.speedMultiplier *= 0.85;
         }
@@ -444,145 +370,52 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
         /* Checks for block collisions */
         this.checkInsideBlocks();
 
-        /* Checks for collisions with any other vehicles */
-        List<Entity> list = this.level.getEntities(this, this.getBoundingBox(), entity -> entity instanceof BumperCarEntity);
-        if (!list.isEmpty())
+        //TODO improve fuel consumption logic
+        if(this.requiresEnergy() && controllingPassenger instanceof PlayerEntity && !((PlayerEntity) controllingPassenger).isCreative() && this.isEnginePowered())
         {
-            for(Entity entity : list)
-            {
-                this.push(entity);
-            }
-        }
-
-        if(this.requiresFuel() && controllingPassenger instanceof PlayerEntity && !((PlayerEntity) controllingPassenger).isCreative() && this.isEnginePowered())
-        {
-            float currentSpeed = Math.abs(Math.min(this.getSpeed(), this.getMaxSpeed()));
-            float normalSpeed = Math.max(0.05F, currentSpeed / this.getMaxSpeed());
-            float currentFuel = this.getCurrentFuel();
-            currentFuel -= this.fuelConsumption * normalSpeed * Config.SERVER.fuelConsumptionFactor.get();
+            float currentFuel = this.getCurrentEnergy();
+            currentFuel -= this.getEnergyConsumptionPerTick() * Config.SERVER.energyConsumptionFactor.get();
             if(currentFuel < 0F) currentFuel = 0F;
-            this.setCurrentFuel(currentFuel);
+            this.setCurrentEnergy(currentFuel);
         }
 
-        this.prevAcceleration = this.getAcceleration();
-    }
-
-    public void updateVehicle() {}
-
-    public abstract void updateVehicleMotion();
-
-    public FuelPortType getFuelPortType()
-    {
-        return FuelPortType.DEFAULT;
-    }
-
-    protected void updateSpeed()
-    {
-        float surfaceModifier = SurfaceHelper.getSurfaceModifier(this);
-        this.currentSpeed = this.getSpeed();
-
-        Optional<IEngineTier> optional = this.getEngineTier();
-        AccelerationDirection acceleration = this.getAcceleration();
-
-        /* Reset charging to false if acceleration is not charging */
-        if(acceleration != AccelerationDirection.CHARGING)
+        if(this.level.isClientSide())
         {
-            this.charging = false;
-        }
-
-        if(this.getControllingPassenger() != null && optional.isPresent())
-        {
-            if(this.canDrive())
-            {
-                boolean charging = this.canCharge() && acceleration == AccelerationDirection.CHARGING && Math.abs(this.currentSpeed) < 0.5F;
-                if(acceleration == AccelerationDirection.FORWARD || (charging || this.charging))
-                {
-                    if(!this.charging)
-                    {
-                        this.charging = charging;
-                    }
-                    if(this.wheelsOnGround || this.canAccelerateInAir())
-                    {
-                        float maxSpeed = this.getActualMaxSpeed() * surfaceModifier * this.getPower();
-                        if(this.currentSpeed < maxSpeed)
-                        {
-                            IEngineTier engineTier = optional.get();
-                            this.currentSpeed += this.getModifiedAccelerationSpeed() * engineTier.getAccelerationMultiplier();
-                            if(this.currentSpeed > maxSpeed)
-                            {
-                                this.currentSpeed = maxSpeed;
-                            }
-                        }
-                        if(this.currentSpeed > maxSpeed)
-                        {
-                            this.currentSpeed *= 0.975F;
-                        }
-                        return;
-                    }
-                }
-                else if(acceleration == AccelerationDirection.REVERSE)
-                {
-                    if(this.wheelsOnGround || this.canAccelerateInAir())
-                    {
-                        IEngineTier engineTier = optional.get();
-                        float maxSpeed = -(4.0F + engineTier.getAdditionalMaxSpeed() / 2) * surfaceModifier * this.getPower();;
-                        if(this.currentSpeed > maxSpeed)
-                        {
-                            this.currentSpeed -= this.getModifiedAccelerationSpeed() * engineTier.getAccelerationMultiplier();
-                            if(this.currentSpeed < maxSpeed)
-                            {
-                                this.currentSpeed = maxSpeed;
-                            }
-                        }
-                        if(this.currentSpeed < maxSpeed)
-                        {
-                            this.currentSpeed *= 0.975F;
-                        }
-                        return;
-                    }
-                }
-            }
-
-            if(this.wheelsOnGround || this.canAccelerateInAir())
-            {
-                this.currentSpeed *= 0.9;
-            }
-            else
-            {
-                this.currentSpeed *= 0.98;
-            }
-        }
-        else if(this.wheelsOnGround)
-        {
-            this.currentSpeed *= 0.85;
-        }
-        else
-        {
-            this.currentSpeed *= 0.98;
+            this.updateEngineSound();
         }
     }
 
-    protected void updateTurning()
-    {
-        this.turnAngle = this.getTargetTurnAngle();
-        this.wheelAngle = this.turnAngle * Math.max(0.45F, 1.0F - Math.abs(this.currentSpeed / 20F));
-        this.deltaYaw = this.wheelAngle * (this.currentSpeed / 30F) / 2F;
+    protected void onVehicleTick() {}
 
-        if(level.isClientSide)
-        {
-            this.renderWheelAngle = this.wheelAngle;
-        }
+    protected abstract void updateVehicleMotion();
+
+    public final FuelFillerType getFuelFillerType()
+    {
+        return this.getPoweredProperties().getFuelFillerType();
+    }
+
+    protected void updateTurning() {}
+
+    protected boolean showWheelParticles()
+    {
+        return this.getThrottle() > 0 || this.charging || this.boosting;
+    }
+
+    protected boolean showTyreSmokeParticles()
+    {
+        return this.charging || this.boosting;
     }
 
     public void createParticles()
     {
-        if(this.getAcceleration() == AccelerationDirection.FORWARD || this.charging)
+        if(this.showWheelParticles())
         {
             /* Uses the same logic when rendering wheels to determine the position, then spawns
              * particles at the contact of the wheel and the ground. */
             VehicleProperties properties = this.getProperties();
             if(properties.getWheels() != null)
             {
+                double[] wheelPositions = this.getWheelPositions();
                 List<Wheel> wheels = properties.getWheels();
                 for(int i = 0; i < wheels.size(); i++)
                 {
@@ -590,9 +423,9 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
                     if(!wheel.shouldSpawnParticles())
                         continue;
                     /* Gets the block under the wheel and spawns a particle */
-                    double wheelX = this.wheelPositions[i * 3];
-                    double wheelY = this.wheelPositions[i * 3 + 1];
-                    double wheelZ = this.wheelPositions[i * 3 + 2];
+                    double wheelX = wheelPositions[i * 3];
+                    double wheelY = wheelPositions[i * 3 + 1];
+                    double wheelZ = wheelPositions[i * 3 + 2];
                     int x = MathHelper.floor(this.getX() + wheelX);
                     int y = MathHelper.floor(this.getY() + wheelY - 0.2D);
                     int z = MathHelper.floor(this.getZ() + wheelZ);
@@ -600,27 +433,35 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
                     BlockState state = this.level.getBlockState(pos);
                     if(state.getMaterial() != Material.AIR && state.getMaterial().isSolid())
                     {
-                        Vector3d dirVec = this.calculateViewVector(this.xRot, this.getModifiedRotationYaw() + 180F).add(0, 0.5, 0);
+                        Vector3d dirVec = this.calculateViewVector(this.xRot, this.yRot + 180F).add(0, this.charging ? 0.5 : 1.0, 0);
                         if(this.charging)
                         {
-                            dirVec = dirVec.scale(this.currentSpeed / 3F);
+                            dirVec = dirVec.scale(this.chargingAmount * this.getEnginePower() / 3F);
                         }
                         if(this.level.isClientSide())
                         {
-                            VehicleHelper.spawnWheelParticle(pos, state, this.getX() + wheelX, this.getY() + wheelY, this.getZ() + wheelZ, dirVec);
+                            double wheelWorldX = this.getX() + wheelX;
+                            double wheelWorldY = this.getY() + wheelY;
+                            double wheelWorldZ = this.getZ() + wheelZ;
+                            VehicleHelper.spawnWheelParticle(pos, state, wheelWorldX, wheelWorldY, wheelWorldZ, dirVec);
+                            if(this.showTyreSmokeParticles() && SurfaceHelper.getSurfaceTypeForMaterial(state.getMaterial()) == SurfaceHelper.SurfaceType.SOLID)
+                            {
+                                VehicleHelper.spawnSmokeParticle(wheelWorldX, wheelWorldY, wheelWorldZ, dirVec.multiply(0.03 * this.random.nextFloat(), 0.03, 0.03 * this.random.nextFloat()));
+                            }
                         }
                     }
                 }
             }
         }
 
-        if(this.shouldShowEngineSmoke()&& this.canDrive() && this.tickCount % 2 == 0)
+        if(this.shouldShowExhaustFumes() && this.canDrive() && this.tickCount % 2 == 0)
         {
-            Vector3d smokePosition = this.getEngineSmokePosition().yRot(-this.getModifiedRotationYaw() * 0.017453292F);
-            this.level.addParticle(ParticleTypes.SMOKE, this.getX() + smokePosition.x, this.getY() + smokePosition.y, this.getZ() + smokePosition.z, -this.getDeltaMovement().x, 0.0D, -this.getDeltaMovement().z);
-            if(this.charging && this.getRealSpeed() > 0.95F)
+            //TODO maybe add more control of this
+            Vector3d fumePosition = this.getExhaustFumesPosition().scale(0.0625).yRot(-this.yRot * 0.017453292F);
+            this.level.addParticle(ParticleTypes.SMOKE, this.getX() + fumePosition.x, this.getY() + fumePosition.y, this.getZ() + fumePosition.z, -this.getDeltaMovement().x, 0.0D, -this.getDeltaMovement().z);
+            if(this.charging && this.isMoving())
             {
-                this.level.addParticle(ParticleTypes.CRIT, this.getX() + smokePosition.x, this.getY() + smokePosition.y, this.getZ() + smokePosition.z, -this.getDeltaMovement().x, 0.0D, -this.getDeltaMovement().z);
+                this.level.addParticle(ParticleTypes.CRIT, this.getX() + fumePosition.x, this.getY() + fumePosition.y, this.getZ() + fumePosition.z, -this.getDeltaMovement().x, 0.0D, -this.getDeltaMovement().z);
             }
         }
     }
@@ -629,52 +470,34 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
     public void onClientUpdate()
     {
         this.prevRenderWheelAngle = this.renderWheelAngle;
-        this.prevWheelieCount = this.wheelieCount;
 
         Entity entity = this.getControllingPassenger();
         if(entity instanceof LivingEntity && entity.equals(Minecraft.getInstance().player))
         {
-            LivingEntity livingEntity = (LivingEntity) entity;
-            float power = VehicleHelper.getPower(this);
-            if(power != this.getPower())
+            float throttle = VehicleHelper.getThrottle((LivingEntity) entity);
+            if(throttle != this.getThrottle())
             {
-                this.setPower(power);
-                PacketHandler.instance.sendToServer(new MessagePower(power));
+                this.setThrottle(throttle);
+                PacketHandler.getPlayChannel().sendToServer(new MessageThrottle(throttle));
             }
 
-            AccelerationDirection acceleration = VehicleHelper.getAccelerationDirection(livingEntity);
-            if(this.getAcceleration() != acceleration)
+            boolean handbraking = VehicleHelper.isHandbraking();
+            if(this.isHandbraking() != handbraking)
             {
-                this.setAcceleration(acceleration);
-                PacketHandler.instance.sendToServer(new MessageAccelerating(acceleration));
+                this.setHandbraking(handbraking);
+                PacketHandler.getPlayChannel().sendToServer(new MessageHandbrake(handbraking));
             }
 
-            boolean horn = VehicleHelper.isHonking();
-            this.setHorn(horn);
-            PacketHandler.instance.sendToServer(new MessageHorn(horn));
-
-            TurnDirection direction = VehicleHelper.getTurnDirection(livingEntity);
-            if(this.getTurnDirection() != direction)
+            if(this.hasHorn())
             {
-                this.setTurnDirection(direction);
-                PacketHandler.instance.sendToServer(new MessageTurnDirection(direction));
+                boolean horn = VehicleHelper.isHonking();
+                this.setHorn(horn);
+                PacketHandler.getPlayChannel().sendToServer(new MessageHorn(horn));
             }
 
-            float targetTurnAngle = VehicleHelper.getTargetTurnAngle(this, false);
-            this.setTargetTurnAngle(targetTurnAngle);
-            PacketHandler.instance.sendToServer(new MessageTurnAngle(targetTurnAngle));
-        }
-
-        if(this.isBoosting() && this.getControllingPassenger() != null)
-        {
-            if(this.wheelieCount < 4)
-            {
-                this.wheelieCount++;
-            }
-        }
-        else if(this.wheelieCount > 0)
-        {
-            this.wheelieCount--;
+            float steeringAngle = VehicleHelper.getSteeringAngle(this);
+            this.setSteeringAngle(steeringAngle);
+            PacketHandler.getPlayChannel().sendToServer(new MessageTurnAngle(steeringAngle));
         }
     }
 
@@ -690,41 +513,13 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
         {
             this.setEngineStack(ItemStack.of(compound.getCompound("EngineStack")));
         }
-        if(compound.contains("WheelStack", Constants.NBT.TAG_COMPOUND))
-        {
-            this.setWheelStack(ItemStack.of(compound.getCompound("WheelStack")));
-        }
-        if(compound.contains("MaxSpeed", Constants.NBT.TAG_FLOAT))
-        {
-            this.setMaxSpeed(compound.getFloat("MaxSpeed"));
-        }
-        if(compound.contains("AccelerationSpeed", Constants.NBT.TAG_FLOAT))
-        {
-            this.setAccelerationSpeed(compound.getFloat("AccelerationSpeed"));
-        }
-        if(compound.contains("TurnSensitivity", Constants.NBT.TAG_INT))
-        {
-            this.setTurnSensitivity(compound.getInt("TurnSensitivity"));
-        }
-        if(compound.contains("MaxTurnAngle", Constants.NBT.TAG_INT))
-        {
-            this.setMaxTurnAngle(compound.getInt("MaxTurnAngle"));
-        }
         if(compound.contains("StepHeight", Constants.NBT.TAG_FLOAT))
         {
             this.maxUpStep = compound.getFloat("StepHeight");
         }
-        if(compound.contains("RequiresFuel", Constants.NBT.TAG_BYTE))
-        {
-            this.setRequiresFuel(compound.getBoolean("RequiresFuel"));
-        }
         if(compound.contains("CurrentFuel", Constants.NBT.TAG_FLOAT))
         {
-            this.setCurrentFuel(compound.getFloat("CurrentFuel"));
-        }
-        if(compound.contains("FuelCapacity", Constants.NBT.TAG_INT))
-        {
-            this.setFuelCapacity(compound.getInt("FuelCapacity"));
+            this.setCurrentEnergy(compound.getFloat("CurrentFuel"));
         }
         if(compound.contains("KeyNeeded", Constants.NBT.TAG_BYTE))
         {
@@ -743,15 +538,12 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
         }
         compound.putBoolean("HasEngine", this.hasEngine());
         CommonUtils.writeItemStackToTag(compound, "EngineStack", this.getEngineStack());
-        CommonUtils.writeItemStackToTag(compound, "WheelStack", this.getWheelStack());
-        compound.putFloat("MaxSpeed", this.getMaxSpeed());
         compound.putFloat("AccelerationSpeed", this.getAccelerationSpeed());
-        compound.putInt("TurnSensitivity", this.getTurnSensitivity());
-        compound.putInt("MaxTurnAngle", this.getMaxTurnAngle());
+        compound.putFloat("MaxSteeringAngle", this.getMaxSteeringAngle());
         compound.putFloat("StepHeight", this.maxUpStep);
-        compound.putBoolean("RequiresFuel", this.requiresFuel());
-        compound.putFloat("CurrentFuel", this.getCurrentFuel());
-        compound.putFloat("FuelCapacity", this.getFuelCapacity());
+        compound.putBoolean("RequiresFuel", this.requiresEnergy());
+        compound.putFloat("CurrentFuel", this.getCurrentEnergy());
+        compound.putFloat("FuelCapacity", this.getEnergyCapacity());
         compound.putBoolean("KeyNeeded", this.isKeyNeeded());
         CommonUtils.writeItemStackToTag(compound, "KeyStack", this.getKeyStack());
     }
@@ -767,7 +559,7 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
         for(Entity passenger : this.getPassengers())
         {
             int seatIndex = this.getSeatTracker().getSeatIndex(passenger.getUUID());
-            if(seatIndex != -1 && properties.getSeats().get(seatIndex).isDriverSeat())
+            if(seatIndex != -1 && properties.getSeats().get(seatIndex).isDriver())
             {
                 return passenger;
             }
@@ -775,158 +567,46 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
         return null;
     }
 
-    @Override
-    public void updatePassengerPosition(Entity passenger)
-    {
-        if(this.hasPassenger(passenger))
-        {
-            int seatIndex = this.getSeatTracker().getSeatIndex(passenger.getUUID());
-            if(seatIndex != -1)
-            {
-                VehicleProperties properties = this.getProperties();
-                if(seatIndex >= 0 && seatIndex < properties.getSeats().size())
-                {
-                    Seat seat = properties.getSeats().get(seatIndex);
-                    Vector3d seatVec = seat.getPosition().add(0, properties.getAxleOffset() + properties.getWheelOffset(), 0).scale(properties.getBodyPosition().getScale()).multiply(-1, 1, 1).scale(0.0625).yRot(-(this.getModifiedRotationYaw() + 180) * 0.017453292F);
-                    //Vector3d seatVec = Vector3d.ZERO;
-                    passenger.setPos(this.getX() - seatVec.x, this.getY() + seatVec.y + passenger.getMyRidingOffset(), this.getZ() - seatVec.z);
-                    if(this.level.isClientSide() && VehicleHelper.canApplyVehicleYaw(passenger))
-                    {
-                        passenger.yRot -= this.deltaYaw;
-                        passenger.setYHeadRot(passenger.yRot);
-                    }
-                    this.applyYawToEntity(passenger);
-                }
-            }
-        }
-    }
-
+    //TODO test
     public boolean isMoving()
     {
-        return this.currentSpeed != 0;
+        return this.motion.length() != 0;
     }
 
-    public void setMaxSpeed(float maxSpeed)
-    {
-        this.entityData.set(MAX_SPEED, maxSpeed);
-    }
-
-    public float getMaxSpeed()
-    {
-        return this.entityData.get(MAX_SPEED);
-    }
-
-    public float getActualMaxSpeed()
-    {
-        float maxSpeed = this.entityData.get(MAX_SPEED);
-        Optional<IEngineTier> engineTier = this.getEngineTier();
-        if(engineTier.isPresent()) maxSpeed += engineTier.get().getAdditionalMaxSpeed();
-        return maxSpeed;
-    }
-
-    public float getRealSpeed()
-    {
-        return this.currentSpeed / (this.getActualMaxSpeed() * SurfaceHelper.getSurfaceModifier(this) * this.getPower());
-    }
-
-    public void setSpeed(float speed)
-    {
-        this.entityData.set(CURRENT_SPEED, speed);
-    }
-
-    public float getSpeed()
-    {
-        return this.currentSpeed;
-    }
-
-    public float getNormalSpeed()
-    {
-        return this.currentSpeed / this.getMaxSpeed();
-    }
-
-    public float getActualSpeed()
-    {
-        return (this.currentSpeed + this.currentSpeed * this.speedMultiplier) / this.getActualMaxSpeed();
-    }
-
-    public void setAccelerationSpeed(float speed)
-    {
-        this.entityData.set(ACCELERATION_SPEED, speed);
-    }
-
+    //TODO remove these
     public float getAccelerationSpeed()
     {
-        return this.entityData.get(ACCELERATION_SPEED);
+        return this.entityData.get(THROTTLE);
     }
 
-    protected float getModifiedAccelerationSpeed()
+    public double getSpeed()
     {
-        return this.entityData.get(ACCELERATION_SPEED);
+        return Math.sqrt(Math.pow(this.motion.x, 2) + Math.pow(this.motion.z, 2)) * 20;
     }
 
-    public double getKilometersPreHour()
+    public void setSteeringAngle(float steeringAngle)
     {
-        return Math.sqrt(Math.pow(this.getX() - this.xo, 2) + Math.pow(this.getY() - this.yo, 2) + Math.pow(this.getZ() - this.zo, 2)) * 20;
+        this.steeringAngle.set(this, steeringAngle);
     }
 
-    public void setTurnDirection(TurnDirection turnDirection)
+    public float getSteeringAngle()
     {
-        this.entityData.set(TURN_DIRECTION, turnDirection.ordinal());
+        return this.steeringAngle.get(this);
     }
 
-    public TurnDirection getTurnDirection()
+    public void setThrottle(float power)
     {
-        return TurnDirection.values()[this.entityData.get(TURN_DIRECTION)];
+        this.throttle.set(this, MathHelper.clamp(power, -1.0F, 1.0F));
     }
 
-    public void setTargetTurnAngle(float targetTurnAngle)
+    public float getThrottle()
     {
-        this.entityData.set(TARGET_TURN_ANGLE, targetTurnAngle);
+        return this.throttle.get(this);
     }
 
-    public float getTargetTurnAngle()
+    public final float getMaxSteeringAngle()
     {
-        return this.entityData.get(TARGET_TURN_ANGLE);
-    }
-
-    public void setAcceleration(AccelerationDirection direction)
-    {
-        this.entityData.set(ACCELERATION_DIRECTION, direction.ordinal());
-    }
-
-    public AccelerationDirection getAcceleration()
-    {
-        return AccelerationDirection.values()[this.entityData.get(ACCELERATION_DIRECTION)];
-    }
-
-    public void setPower(float power)
-    {
-        this.entityData.set(POWER, MathHelper.clamp(power, 0.0F, 1.0F));
-    }
-
-    public float getPower()
-    {
-        return this.entityData.get(POWER);
-    }
-
-    public void setTurnSensitivity(int sensitivity)
-    {
-        this.entityData.set(TURN_SENSITIVITY, sensitivity);
-    }
-
-    public int getTurnSensitivity()
-    {
-        return this.entityData.get(TURN_SENSITIVITY);
-    }
-
-    public void setMaxTurnAngle(int turnAngle)
-    {
-        this.entityData.set(MAX_TURN_ANGLE, turnAngle);
-    }
-
-    public int getMaxTurnAngle()
-    {
-        return this.entityData.get(MAX_TURN_ANGLE);
+        return this.getPoweredProperties().getMaxSteeringAngle();
     }
 
     public boolean hasEngine()
@@ -950,9 +630,9 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
     }
 
     @OnlyIn(Dist.CLIENT)
-    public boolean shouldRenderEngine()
+    public final boolean shouldRenderEngine()
     {
-        return false;
+        return this.getPoweredProperties().isRenderEngine();
     }
 
     @OnlyIn(Dist.CLIENT)
@@ -961,19 +641,22 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
         return true;
     }
 
-    public Vector3d getEngineSmokePosition()
+    public final Vector3d getExhaustFumesPosition()
     {
-        return new Vector3d(0, 0, 0);
+        return this.getPoweredProperties().getExhaustFumesPosition();
     }
 
-    public boolean shouldShowEngineSmoke()
+    public final boolean shouldShowExhaustFumes()
     {
-        return false;
+        return this.getPoweredProperties().showExhaustFumes();
     }
 
     public void setHorn(boolean activated)
     {
-        this.entityData.set(HORN, activated);
+        if(this.hasHorn())
+        {
+            this.entityData.set(HORN, activated);
+        }
     }
 
     public boolean getHorn()
@@ -1004,60 +687,45 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
         return launching;
     }
 
-    public boolean requiresFuel()
+    public final boolean requiresEnergy()
     {
-        return Config.SERVER.fuelEnabled.get() && this.entityData.get(REQUIRES_FUEL);
-    }
-
-    public void setRequiresFuel(boolean requiresFuel)
-    {
-        this.entityData.set(REQUIRES_FUEL, Config.SERVER.fuelEnabled.get() && requiresFuel);
+        return this.getPoweredProperties().requiresEnergy() && Config.SERVER.fuelEnabled.get();
     }
 
     public boolean isFueled()
     {
-        return !this.requiresFuel() || this.isControllingPassengerCreative() || this.getCurrentFuel() > 0F;
+        return !this.requiresEnergy() || this.isControllingPassengerCreative() || this.getCurrentEnergy() > 0F;
     }
 
-    public void setCurrentFuel(float fuel)
+    public void setCurrentEnergy(float fuel)
     {
         this.entityData.set(CURRENT_FUEL, fuel);
     }
 
-    public float getCurrentFuel()
+    public float getCurrentEnergy()
     {
         return this.entityData.get(CURRENT_FUEL);
     }
 
-    public void setFuelCapacity(float capacity)
+    public final float getEnergyCapacity()
     {
-        this.entityData.set(FUEL_CAPACITY, capacity);
+        return this.getPoweredProperties().getEnergyCapacity();
     }
 
-    public float getFuelCapacity()
+    public final float getEnergyConsumptionPerTick()
     {
-        return this.entityData.get(FUEL_CAPACITY);
+        return this.getPoweredProperties().getEnergyConsumptionPerTick();
     }
 
-    public void setFuelConsumption(float consumption)
+    public int addEnergy(int amount)
     {
-        this.fuelConsumption = consumption;
-    }
-
-    public float getFuelConsumption()
-    {
-        return fuelConsumption;
-    }
-
-    public int addFuel(int fuel)
-    {
-        if(!this.requiresFuel())
-            return fuel;
-        float currentFuel = this.getCurrentFuel();
-        currentFuel += fuel;
-        int remaining = Math.max(0, Math.round(currentFuel - this.getFuelCapacity()));
-        currentFuel = Math.min(currentFuel, this.getFuelCapacity());
-        this.setCurrentFuel(currentFuel);
+        if(!this.requiresEnergy())
+            return amount;
+        float currentEnergy = this.getCurrentEnergy();
+        currentEnergy += amount;
+        int remaining = Math.max(0, Math.round(currentEnergy - this.getEnergyCapacity()));
+        currentEnergy = Math.min(currentEnergy, this.getEnergyCapacity());
+        this.setCurrentEnergy(currentEnergy);
         return remaining;
     }
 
@@ -1085,20 +753,20 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
     {
         if(!this.getKeyStack().isEmpty())
         {
-            Vector3d keyHole = this.getPartPositionAbsoluteVec(this.getProperties().getKeyPortPosition(), 1F);
+            Vector3d keyHole = this.getWorldPosition(this.getIgnitionTransform(), 1.0F);
             this.level.addFreshEntity(new ItemEntity(this.level, keyHole.x, keyHole.y, keyHole.z, this.getKeyStack()));
             this.setKeyStack(ItemStack.EMPTY);
         }
     }
 
-    public boolean isLockable()
+    public final boolean isLockable()
     {
-        return true;
+        return this.getPoweredProperties().canLockWithKey();
     }
 
     public boolean isEnginePowered()
     {
-        return ((this.getProperties().getEngineType() == EngineType.NONE || this.hasEngine()) && (this.isControllingPassengerCreative() || this.isFueled()) && this.getDestroyedStage() < 9) && (!this.isKeyNeeded() || !this.getKeyStack().isEmpty());
+        return ((this.getEngineType() == EngineType.NONE || this.hasEngine()) && (this.isControllingPassengerCreative() || this.isFueled()) && this.getDestroyedStage() < 9) && (!this.isKeyNeeded() || !this.getKeyStack().isEmpty());
     }
 
     public boolean canDrive()
@@ -1116,24 +784,14 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
         this.owner = owner;
     }
 
-    public boolean hasWheelStack()
+    public void setHandbraking(boolean handbraking)
     {
-        return !this.getWheelStack().isEmpty();
+        this.handbrake.set(this, handbraking);
     }
 
-    public void setWheelStack(ItemStack wheels)
+    public boolean isHandbraking()
     {
-        this.entityData.set(WHEEL_STACK, wheels);
-    }
-
-    public ItemStack getWheelStack()
-    {
-        return this.entityData.get(WHEEL_STACK);
-    }
-
-    public Optional<IWheelType> getWheelType()
-    {
-        return IWheelType.fromStack(this.entityData.get(WHEEL_STACK));
+        return this.handbrake.get(this);
     }
 
     @Override
@@ -1191,11 +849,6 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
         if(player instanceof ServerPlayerEntity)
         {
             NetworkHooks.openGui((ServerPlayerEntity) player, this, buffer -> buffer.writeInt(this.getId()));
-            /*ServerPlayerEntity serverPlayerEntity = (ServerPlayerEntity) player;
-            serverPlayerEntity.getNextWindowId();
-            serverPlayerEntity.openContainer = new EditVehicleContainer(serverPlayerEntity.currentWindowId, this.getVehicleInventory(), this, player, player.inventory);
-            serverPlayerEntity.openContainer.addListener(serverPlayerEntity);
-            PacketHandler.instance.send(PacketDistributor.PLAYER.with(() -> serverPlayerEntity), new MessageVehicleWindow(serverPlayerEntity.currentWindowId, this.getEntityId()));*/
         }
     }
 
@@ -1213,7 +866,7 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
         this.vehicleInventory = new Inventory(2);
 
         ItemStack engine = this.getEngineStack();
-        if(this.getProperties().getEngineType() != EngineType.NONE & !engine.isEmpty())
+        if(this.getEngineType() != EngineType.NONE & !engine.isEmpty())
         {
             this.vehicleInventory.setItem(0, engine.copy());
         }
@@ -1235,7 +888,7 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
             if(engine.getItem() instanceof EngineItem)
             {
                 EngineItem item = (EngineItem) engine.getItem();
-                if(item.getEngineType() == this.getProperties().getEngineType())
+                if(item.getEngineType() == this.getEngineType())
                 {
                     this.setEngineStack(engine.copy());
                 }
@@ -1244,7 +897,7 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
                     this.setEngineStack(ItemStack.EMPTY);
                 }
             }
-            else if(this.getProperties().getEngineType() != EngineType.NONE)
+            else if(this.getEngineType() != EngineType.NONE)
             {
                 this.setEngineStack(ItemStack.EMPTY);
             }
@@ -1283,8 +936,8 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
         if(!isCreativeMode && this.level.getGameRules().getBoolean(GameRules.RULE_DOENTITYDROPS))
         {
             // Spawns the engine if the vehicle has one
-            ItemStack engine = ItemLookup.getEngine(this);
-            if(this.getProperties().getEngineType() != EngineType.NONE && !engine.isEmpty())
+            ItemStack engine = this.getEngineStack();
+            if(this.getEngineType() != EngineType.NONE && !engine.isEmpty())
             {
                 InventoryUtil.spawnItemStack(this.level, this.getX(), this.getY(), this.getZ(), engine);
             }
@@ -1306,29 +959,32 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
         }
     }
 
-    public boolean canChangeWheels()
-    {
-        return true;
-    }
-
     private void updateWheelPositions()
     {
         VehicleProperties properties = this.getProperties();
         if(properties.getWheels() != null)
         {
             List<Wheel> wheels = properties.getWheels();
+
+            // Fixes game crashing if adding wheels when reloading vehicle properties json
+           /* if(this.wheelPositions.length != wheels.size() * 3)
+            {
+                this.wheelPositions = new double[wheels.size() * 3];
+            }*/
+
+            double[] wheelPositions = this.getWheelPositions();
             for(int i = 0; i < wheels.size(); i++)
             {
                 Wheel wheel = wheels.get(i);
 
-                PartPosition bodyPosition = properties.getBodyPosition();
+                Transform bodyPosition = properties.getBodyTransform();
                 double wheelX = bodyPosition.getX();
                 double wheelY = bodyPosition.getY();
                 double wheelZ = bodyPosition.getZ();
 
                 double scale = bodyPosition.getScale();
 
-                /* Applies axel and wheel offets */
+                /* Applies axle and wheel offsets */
                 wheelY += (properties.getWheelOffset() * 0.0625F) * scale;
 
                 /* Wheels Translations */
@@ -1341,7 +997,7 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
                 wheelY -= ((8 * 0.0625) / 2.0) * scale * wheel.getScaleY();
 
                 /* Update the wheel position */
-                Vector3d wheelVec = new Vector3d(wheelX, wheelY, wheelZ).yRot(-this.getModifiedRotationYaw() * 0.017453292F);
+                Vector3d wheelVec = new Vector3d(wheelX, wheelY, wheelZ).yRot(-this.yRot * 0.017453292F);
                 wheelPositions[i * 3] = wheelVec.x;
                 wheelPositions[i * 3 + 1] = wheelVec.y;
                 wheelPositions[i * 3 + 2] = wheelVec.z;
@@ -1349,50 +1005,12 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
         }
     }
 
-    protected void updateGroundState()
-    {
-        if(this.hasWheelStack())
-        {
-            VehicleProperties properties = this.getProperties();
-            List<Wheel> wheels = properties.getWheels();
-            if(this.hasWheelStack() && wheels != null)
-            {
-                for(int i = 0; i < wheels.size(); i++)
-                {
-                    double wheelX = this.wheelPositions[i * 3];
-                    double wheelY = this.wheelPositions[i * 3 + 1];
-                    double wheelZ = this.wheelPositions[i * 3 + 2];
-                    int x = MathHelper.floor(this.getX() + wheelX);
-                    int y = MathHelper.floor(this.getY() + wheelY - 0.2D);
-                    int z = MathHelper.floor(this.getZ() + wheelZ);
-                    BlockPos pos = new BlockPos(x, y, z);
-                    BlockState state = this.level.getBlockState(pos);
-                    if(!state.getCollisionShape(this.level, pos).isEmpty())
-                    {
-                        wheelsOnGround = true;
-                        return;
-                    }
-                }
-            }
-            wheelsOnGround = false;
-        }
-    }
-
-    protected boolean canAccelerateInAir()
-    {
-        return false;
-    }
-
-    protected boolean canCharge()
-    {
-        return false;
-    }
-
-    protected void releaseCharge()
+    protected void releaseCharge(float strength)
     {
         this.boosting = true;
-        this.boostTimer = 20;
-        this.speedMultiplier = 0.5F;
+        this.boostStrength = MathHelper.clamp(strength, 0.0F, 1.0F);
+        this.boostTimer = (int) (20 * this.boostStrength);
+        this.speedMultiplier = 0.5F * this.boostStrength;
     }
 
     @Override
@@ -1424,6 +1042,11 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
         return this.getName();
     }
 
+    public float getSpeedMultiplier()
+    {
+        return speedMultiplier;
+    }
+
     @Nullable
     @Override
     public Container createMenu(int windowId, PlayerInventory playerInventory, PlayerEntity playerEntity)
@@ -1433,91 +1056,89 @@ public abstract class PoweredVehicleEntity extends VehicleEntity implements IInv
 
     public double[] getWheelPositions()
     {
+        /* Updates the wheel positions as reloading vehicle properties
+         * could cause a crash if wheels are added or removed. */
+        if(this.wheelPositions == null || this.wheelPositions.length != this.getProperties().getWheels().size() * 3)
+        {
+            this.wheelPositions = new double[this.getProperties().getWheels().size() * 3];
+        }
         return this.wheelPositions;
     }
 
-    public enum TurnDirection
+    public float getBoostStrength()
     {
-        LEFT(1), FORWARD(0), RIGHT(-1);
-
-        final int dir;
-
-        TurnDirection(int dir)
-        {
-            this.dir = dir;
-        }
-
-        public int getDir()
-        {
-            return dir;
-        }
+        return this.boostStrength;
     }
 
-    public enum AccelerationDirection
+    public void setSpeedMultiplier(float speedMultiplier)
     {
-        FORWARD, NONE, REVERSE,
-        CHARGING;
-
-        public static AccelerationDirection fromEntity(LivingEntity entity)
-        {
-            if(entity.zza > 0)
-            {
-                return FORWARD;
-            }
-            else if(entity.zza < 0)
-            {
-                return REVERSE;
-            }
-            return NONE;
-        }
+        this.speedMultiplier = speedMultiplier;
     }
 
-    public enum FuelPortType
+    public final IEngineType getEngineType()
     {
-        DEFAULT(SpecialModels.FUEL_DOOR_CLOSED, SpecialModels.FUEL_DOOR_OPEN, ModSounds.ENTITY_VEHICLE_FUEL_PORT_LARGE_OPEN.get(), 0.25F, 0.6F, ModSounds.ENTITY_VEHICLE_FUEL_PORT_LARGE_CLOSE.get(), 0.12F, 0.6F),
-        SMALL(SpecialModels.SMALL_FUEL_DOOR_CLOSED, SpecialModels.SMALL_FUEL_DOOR_OPEN, ModSounds.ENTITY_VEHICLE_FUEL_PORT_SMALL_OPEN.get(), 0.4F, 0.6F, ModSounds.ENTITY_VEHICLE_FUEL_PORT_SMALL_CLOSE.get(), 0.3F, 0.6F);
-
-        private ISpecialModel closed;
-        private ISpecialModel open;
-        private SoundEvent openSound;
-        private SoundEvent closeSound;
-        private float openVolume;
-        private float closeVolume;
-        private float openPitch;
-        private float closePitch;
-
-        FuelPortType(ISpecialModel closed, ISpecialModel open, SoundEvent openSound, float openVolume, float openPitch, SoundEvent closeCount, float closeVolume, float closePitch)
-        {
-            this.closed = closed;
-            this.open = open;
-            this.openSound = openSound;
-            this.openVolume = openVolume;
-            this.openPitch = openPitch;
-            this.closeSound = closeCount;
-            this.closeVolume = closeVolume;
-            this.closePitch = closePitch;
-        }
-
-        public ISpecialModel getClosedModel()
-        {
-            return closed;
-        }
-
-        public ISpecialModel getOpenModel()
-        {
-            return open;
-        }
-
-        @OnlyIn(Dist.CLIENT)
-        public void playOpenSound()
-        {
-            VehicleHelper.playSound(this.openSound, this.openVolume, this.openPitch);
-        }
-
-        @OnlyIn(Dist.CLIENT)
-        public void playCloseSound()
-        {
-            VehicleHelper.playSound(this.closeSound, this.closeVolume, this.closePitch);
-        }
+        return this.getPoweredProperties().getEngineType();
     }
+
+    public final float getEnginePower()
+    {
+        return this.getPoweredProperties().getEnginePower();
+    }
+
+    public final Transform getIgnitionTransform()
+    {
+        return this.getPoweredProperties().getIgnitionTransform();
+    }
+
+    public final Vector3d getFrontAxleOffset()
+    {
+        return this.getPoweredProperties().getFrontAxleOffset();
+    }
+
+    public final Vector3d getRearAxleOffset()
+    {
+        return this.getPoweredProperties().getRearAxleOffset();
+    }
+
+    public final boolean hasHorn()
+    {
+        return this.getPoweredProperties().hasHorn();
+    }
+
+    protected final PoweredProperties getPoweredProperties()
+    {
+        return this.getProperties().getExtended(PoweredProperties.class);
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    protected void updateEngineSound()
+    {
+        if(this.charging)
+        {
+            this.enginePitch = this.getMinEnginePitch() + (this.getMaxEnginePitch() - this.getMinEnginePitch()) * 0.75F * this.chargingAmount;
+            return;
+        }
+
+        this.enginePitch = this.getMinEnginePitch() + (this.getMaxEnginePitch() - this.getMinEnginePitch()) * (float) Math.abs(this.getSpeed() / 25F);
+        this.engineVolume = this.getControllingPassenger() != null && this.isEnginePowered() ? 1.0F : 0.001F;
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    public float getEnginePitch()
+    {
+        return this.enginePitch;
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    public float getEngineVolume()
+    {
+        return this.engineVolume;
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    public float getRenderWheelAngle(float partialTicks)
+    {
+        return this.prevRenderWheelAngle + (this.renderWheelAngle - this.prevRenderWheelAngle) * partialTicks;
+    }
+
 }

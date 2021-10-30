@@ -12,27 +12,56 @@ import net.minecraftforge.client.model.ModelLoader;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
+import javax.annotation.Nullable;
+
 @Mod.EventBusSubscriber(modid = Reference.MOD_ID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.MOD)
 public enum SpecialModels implements ISpecialModel
 {
+    /* Sports Car */
+    SPORTS_CAR_BODY("sports_car/body"),
+    SPORTS_CAR_STEERING_WHEEL("sports_car/steering_wheel"),
+    SPORTS_CAR_COSMETIC_STOCK_DASHBOARD("sports_car/cosmetics/stock_dashboard"),
+    SPORTS_CAR_COSMETIC_STOCK_FRONT_BUMPER("sports_car/cosmetics/stock_front_bumper"),
+    SPORTS_CAR_COSMETIC_STOCK_REAR_BUMPER("sports_car/cosmetics/stock_rear_bumper"),
+    SPORTS_CAR_COSMETIC_STOCK_HOOD("sports_car/cosmetics/stock_hood"),
+    SPORTS_CAR_COSMETIC_STOCK_LEFT_DOOR("sports_car/cosmetics/stock_left_door"),
+    SPORTS_CAR_COSMETIC_STOCK_RIGHT_DOOR("sports_car/cosmetics/stock_right_door"),
+    SPORTS_CAR_COSMETIC_STOCK_FRONT_LIGHTS("sports_car/cosmetics/stock_front_lights"),
+    SPORTS_CAR_COSMETIC_STOCK_REAR_LIGHTS("sports_car/cosmetics/stock_rear_lights"),
+    SPORTS_CAR_COSMETIC_STOCK_SEAT("sports_car/cosmetics/stock_seat"),
+    SPORTS_CAR_COSMETIC_STOCK_SPOILER("sports_car/cosmetics/stock_spoiler"),
+
+    /* Mini Bus */
+    MINI_BUS_BODY("mini_bus/body"),
+    MINI_BUS_STEERING_WHEEL("mini_bus/steering_wheel"),
+    MINI_BUS_COSMETIC_STOCK_DASHBOARD("mini_bus/cosmetics/stock_dashboard"),
+    MINI_BUS_COSMETIC_STOCK_LEFT_DOOR("mini_bus/cosmetics/stock_left_door"),
+    MINI_BUS_COSMETIC_STOCK_RIGHT_DOOR("mini_bus/cosmetics/stock_right_door"),
+    MINI_BUS_COSMETIC_STOCK_SLIDING_DOOR("mini_bus/cosmetics/stock_sliding_door"),
+    MINI_BUS_COSMETIC_STOCK_SEAT("mini_bus/cosmetics/stock_seat"),
+    MINI_BUS_COSMETIC_STOCK_ROOF("mini_bus/cosmetics/stock_roof"),
+    MINI_BUS_COSMETIC_ROOF_RACKS("mini_bus/cosmetics/roof_racks"),
+    MINI_BUS_COSMETIC_AIRCON_LADDER_REAR_DECOR("mini_bus/cosmetics/aircon_ladder"),
+    MINI_BUS_COSMETIC_FRONT_ROOF("mini_bus/cosmetics/front_roof"),
+
+    /* Moped */
+    MOPED_BODY("moped/body"),
+    MOPED_MUD_GUARD("moped/mud_guard"),
+    MOPED_HANDLES("moped/handles"),
+    MOPED_COSMETIC_STOCK_SEAT("moped/cosmetics/stock_seat"),
+    MOPED_COSMETIC_STOCK_TRAY("moped/cosmetics/stock_tray"),
+    MOPED_COSMETIC_STOCK_FRONT_LIGHT("moped/cosmetics/stock_front_light"),
+
+    /* Dirt Bike */
+    DIRT_BIKE_BODY("dirt_bike/body"),
+    DIRT_BIKE_HANDLES("dirt_bike/handles"),
+
     ATV_BODY("atv_body"),
     ATV_HANDLES("atv_handles"),
-    DUNE_BUGGY_BODY("dune_buggy_body"),
-    DUNE_BUGGY_HANDLES("dune_buggy_handles"),
     GO_KART_BODY("go_kart_body"),
     GO_KART_STEERING_WHEEL("go_kart_steering_wheel"),
-    SHOPPING_CART_BODY("shopping_cart_body"),
-    MINI_BIKE_BODY("mini_bike_body"),
-    MINI_BIKE_HANDLES("mini_bike_handles"),
-    BUMPER_CAR_BODY("bumper_car_body"),
     JET_SKI_BODY("jet_ski_body"),
-    SPEED_BOAT_BODY("speed_boat_body"),
-    ALUMINUM_BOAT_BODY("aluminum_boat_body"),
-    SMART_CAR_BODY("smart_car_body"),
     LAWN_MOWER_BODY("lawn_mower_body"),
-    MOPED_BODY("moped_body"),
-    MOPED_MUD_GUARD("moped_mud_guard"),
-    MOPED_HANDLES("moped_handles"),
     SPORTS_PLANE("sports_plane_body"),
     SPORTS_PLANE_WING("sports_plane_wing"),
     SPORTS_PLANE_WHEEL_COVER("sports_plane_wheel_cover"),
@@ -41,9 +70,6 @@ public enum SpecialModels implements ISpecialModel
     GOLF_CART_BODY("golf_cart_body"),
     OFF_ROADER_BODY("off_roader_body"),
     TRACTOR("tractor_body"),
-    MINI_BUS_BODY("mini_bus_body"),
-    DIRT_BIKE_BODY("dirt_bike_body"),
-    DIRT_BIKE_HANDLES("dirt_bike_handles"),
     VEHICLE_TRAILER("trailer_body"),
     STORAGE_TRAILER("trailer_chest_body"),
     SEEDER_TRAILER("trailer_seeder_body"),
@@ -66,8 +92,7 @@ public enum SpecialModels implements ISpecialModel
     SOFA_HELICOPTER_SKID("sofa_helicopter_skid"),
 
     /* Mod dependent models */
-    RED_SOFA(new ModelResourceLocation("cfm:red_sofa", "inventory"), false),
-    RAINBOW_SOFA(new ModelResourceLocation("cfm:rainbow_sofa", "inventory"), false);
+    RED_SOFA(new ModelResourceLocation("cfm:red_sofa", "inventory"), false);
 
     // Add spray can lid
     /**
@@ -83,6 +108,7 @@ public enum SpecialModels implements ISpecialModel
     /**
      * Cached model
      */
+    @Nullable
     @OnlyIn(Dist.CLIENT)
     private IBakedModel cachedModel;
 
@@ -105,6 +131,11 @@ public enum SpecialModels implements ISpecialModel
     {
         this.modelLocation = resource;
         this.specialModel = specialModel;
+    }
+
+    public ResourceLocation getModelLocation()
+    {
+        return this.modelLocation;
     }
 
     /**

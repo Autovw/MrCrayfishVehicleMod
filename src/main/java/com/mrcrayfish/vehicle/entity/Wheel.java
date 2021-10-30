@@ -1,22 +1,32 @@
 package com.mrcrayfish.vehicle.entity;
 
+import com.google.gson.JsonObject;
+import com.mrcrayfish.vehicle.util.ExtraJSONUtils;
+import net.minecraft.util.JSONUtils;
 import net.minecraft.util.math.vector.Vector3d;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 
 /**
  * Author: MrCrayfish
  */
 public class Wheel
 {
-    private Vector3d offset;
-    private Vector3d scale;
-    private float width;
-    private Side side;
-    private Position position;
-    private boolean autoScale;
-    private boolean particles;
-    private boolean render;
+    public static final Vector3d DEFAULT_OFFSET = Vector3d.ZERO;
+    public static final Vector3d DEFAULT_SCALE = new Vector3d(1, 1, 1);
+    public static final float DEFAULT_WIDTH = 4.0F;
+    public static final Side DEFAULT_SIDE = Side.NONE;
+    public static final Position DEFAULT_POSITION = Position.NONE;
+    public static final boolean DEFAULT_AUTO_SCALE = false;
+    public static final boolean DEFAULT_PARTICLES = false;
+    public static final boolean DEFAULT_RENDER = true;
+
+    private final Vector3d offset;
+    private final Vector3d scale;
+    private final float width;
+    private final Side side;
+    private final Position position;
+    private final boolean autoScale;
+    private final boolean particles;
+    private final boolean render;
 
     protected Wheel(Vector3d offset, Vector3d scale, float width, Side side, Position position, boolean autoScale, boolean particles, boolean render)
     {
@@ -28,16 +38,6 @@ public class Wheel
         this.autoScale = autoScale;
         this.particles = particles;
         this.render = render;
-    }
-
-    @OnlyIn(Dist.CLIENT)
-    public float getWheelRotation(LandVehicleEntity vehicle, float partialTicks)
-    {
-        if(position == Position.REAR)
-        {
-            return vehicle.prevRearWheelRotation + (vehicle.rearWheelRotation - vehicle.prevRearWheelRotation) * partialTicks;
-        }
-        return vehicle.prevFrontWheelRotation + (vehicle.frontWheelRotation - vehicle.prevFrontWheelRotation) * partialTicks;
     }
 
     public Vector3d getOffset()
@@ -95,14 +95,6 @@ public class Wheel
         return position;
     }
 
-    void updateScale(double scale)
-    {
-        double xScale = this.scale.x != 0.0 ? this.scale.x : scale;
-        double yScale = this.scale.y != 0.0 ? this.scale.y : scale;
-        double zScale = this.scale.z != 0.0 ? this.scale.z : scale;
-        this.scale = new Vector3d(xScale, yScale, zScale);
-    }
-
     /**
      * Indicates that the wheel scale is to be generated. This is only used when loading vehicle
      * properties and has no other significant use.
@@ -140,14 +132,39 @@ public class Wheel
         return render;
     }
 
-    public Wheel copy()
+    public Wheel rescale(Vector3d newScale)
     {
-        return new Wheel(this.offset, this.scale, this.width, this.side, this.position, this.autoScale, this.particles, this.render);
+        return new Wheel(this.offset, newScale, this.width, this.side, this.position, this.autoScale, this.particles, this.render);
+    }
+
+    public JsonObject toJsonObject()
+    {
+        JsonObject object = new JsonObject();
+        ExtraJSONUtils.write(object, "side", this.side, DEFAULT_SIDE);
+        ExtraJSONUtils.write(object, "axle", this.position, DEFAULT_POSITION);
+        ExtraJSONUtils.write(object, "offset", this.offset, DEFAULT_OFFSET);
+        ExtraJSONUtils.write(object, "scale", this.scale, DEFAULT_SCALE);
+        ExtraJSONUtils.write(object, "autoScale", this.autoScale, DEFAULT_AUTO_SCALE);
+        ExtraJSONUtils.write(object, "particles", this.particles, DEFAULT_PARTICLES);
+        ExtraJSONUtils.write(object, "render", this.render, DEFAULT_RENDER);
+        return object;
+    }
+
+    public static Wheel fromJsonObject(JsonObject object)
+    {
+        Vector3d offset = ExtraJSONUtils.getAsVector3d(object, "offset", DEFAULT_OFFSET);
+        Vector3d scale = ExtraJSONUtils.getAsVector3d(object, "scale", DEFAULT_SCALE);
+        Wheel.Side side = ExtraJSONUtils.getAsEnum(object, "side", Wheel.Side.class, DEFAULT_SIDE);
+        Wheel.Position position = ExtraJSONUtils.getAsEnum(object, "axle", Wheel.Position.class, DEFAULT_POSITION);
+        boolean autoScale = JSONUtils.getAsBoolean(object, "autoScale", DEFAULT_AUTO_SCALE);
+        boolean particles = JSONUtils.getAsBoolean(object, "particles", DEFAULT_PARTICLES);
+        boolean render = JSONUtils.getAsBoolean(object, "render", DEFAULT_RENDER);
+        return new Wheel(offset, scale, 4.0F, side, position, autoScale, particles, render);
     }
 
     public enum Side
     {
-        LEFT(-1), RIGHT(1), NONE(0);
+        LEFT(-1), RIGHT(1), NONE(1);
 
         int offset;
 
@@ -174,14 +191,14 @@ public class Wheel
 
     public static class Builder
     {
-        private Vector3d offset = Vector3d.ZERO;
-        private Vector3d scale = Vector3d.ZERO;
-        private float width = 4.0F;
-        private Side side = Side.NONE;
-        private Position position = Position.NONE;
-        private boolean autoScale = false;
-        private boolean particles = false;
-        private boolean render = true;
+        private Vector3d offset = DEFAULT_OFFSET;
+        private Vector3d scale = DEFAULT_SCALE;
+        private float width = DEFAULT_WIDTH;
+        private Side side = DEFAULT_SIDE;
+        private Position position = DEFAULT_POSITION;
+        private boolean autoScale = DEFAULT_AUTO_SCALE;
+        private boolean particles = DEFAULT_PARTICLES;
+        private boolean render = DEFAULT_RENDER;
 
         public Builder setOffset(double x, double y, double z)
         {

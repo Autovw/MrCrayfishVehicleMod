@@ -1,10 +1,9 @@
 package com.mrcrayfish.vehicle.network.message;
 
-import com.mrcrayfish.vehicle.common.CommonEvents;
+import com.mrcrayfish.vehicle.network.play.ServerPlayHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.ServerPlayerEntity;
 import net.minecraft.network.PacketBuffer;
-import net.minecraft.util.Hand;
 import net.minecraftforge.fml.network.NetworkEvent;
 
 import java.util.function.Supplier;
@@ -45,17 +44,19 @@ public class MessagePickupVehicle implements IMessage<MessagePickupVehicle>
     @Override
     public void handle(MessagePickupVehicle message, Supplier<NetworkEvent.Context> supplier)
     {
-        supplier.get().enqueueWork(() -> {
+        supplier.get().enqueueWork(() ->
+        {
             ServerPlayerEntity player = supplier.get().getSender();
-            if(player != null && player.isCrouching())
+            if(player != null)
             {
-                Entity targetEntity = player.level.getEntity(message.entityId);
-                if(targetEntity != null)
-                {
-                    CommonEvents.pickUpVehicle(player.level, player, Hand.MAIN_HAND, targetEntity);
-                }
+                ServerPlayHandler.handlePickupVehicleMessage(player, message);
             }
         });
         supplier.get().setPacketHandled(true);
+    }
+
+    public int getEntityId()
+    {
+        return this.entityId;
     }
 }

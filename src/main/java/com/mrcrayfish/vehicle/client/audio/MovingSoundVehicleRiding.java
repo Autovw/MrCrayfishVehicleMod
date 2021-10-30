@@ -5,6 +5,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.audio.TickableSound;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.SoundCategory;
+import net.minecraft.util.math.MathHelper;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
@@ -29,6 +30,7 @@ public class MovingSoundVehicleRiding extends TickableSound
         this.looping = true;
         this.delay = 0;
         this.volume = 0.001F;
+        this.pitch = vehicle.getEnginePitch();
     }
 
     @Override
@@ -46,7 +48,8 @@ public class MovingSoundVehicleRiding extends TickableSound
             this.stop();
             return;
         }
-        this.volume = vehicle.getControllingPassenger() != null && vehicle.isEnginePowered() ? 1.0F : 0.0F;
-        this.pitch = vehicle.getMinEnginePitch() + (vehicle.getMaxEnginePitch() - vehicle.getMinEnginePitch()) * Math.abs(vehicle.getActualSpeed());
+
+        this.volume = MathHelper.lerp(0.2F, this.volume, vehicle.getEngineVolume());
+        this.pitch = MathHelper.lerp(0.2F, this.pitch, vehicle.getEnginePitch());
     }
 }

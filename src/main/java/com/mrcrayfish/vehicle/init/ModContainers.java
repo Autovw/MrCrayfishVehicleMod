@@ -2,6 +2,7 @@ package com.mrcrayfish.vehicle.init;
 
 import com.mrcrayfish.vehicle.Reference;
 import com.mrcrayfish.vehicle.common.inventory.IStorage;
+import com.mrcrayfish.vehicle.common.inventory.StorageInventory;
 import com.mrcrayfish.vehicle.entity.PoweredVehicleEntity;
 import com.mrcrayfish.vehicle.inventory.container.EditVehicleContainer;
 import com.mrcrayfish.vehicle.inventory.container.FluidExtractorContainer;
@@ -11,12 +12,15 @@ import com.mrcrayfish.vehicle.inventory.container.WorkstationContainer;
 import com.mrcrayfish.vehicle.tileentity.FluidExtractorTileEntity;
 import com.mrcrayfish.vehicle.tileentity.FluidMixerTileEntity;
 import com.mrcrayfish.vehicle.tileentity.WorkstationTileEntity;
+import net.minecraft.entity.Entity;
 import net.minecraft.inventory.container.Container;
 import net.minecraft.inventory.container.ContainerType;
 import net.minecraftforge.fml.RegistryObject;
 import net.minecraftforge.fml.network.IContainerFactory;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
+
+import java.util.Objects;
 
 /**
  * Author: MrCrayfish
@@ -42,7 +46,8 @@ public class ModContainers
         return new WorkstationContainer(windowId, playerInventory, workstation);
     });
     public static final RegistryObject<ContainerType<StorageContainer>> STORAGE = register("storage", (IContainerFactory<StorageContainer>) (windowId, playerInventory, data) -> {
-        IStorage storage = (IStorage) playerInventory.player.level.getEntity(data.readVarInt());
+        Entity entity = playerInventory.player.level.getEntity(data.readVarInt());
+        StorageInventory storage = ((IStorage) entity).getStorageInventory(data.readUtf());
         return new StorageContainer(windowId, playerInventory, storage, playerInventory.player);
     });
 

@@ -1,15 +1,16 @@
 package com.mrcrayfish.vehicle.entity.trailer;
 
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.mrcrayfish.vehicle.Config;
-import com.mrcrayfish.vehicle.client.EntityRayTracer;
+import com.mrcrayfish.vehicle.client.raytrace.EntityRayTracer;
 import com.mrcrayfish.vehicle.common.inventory.IStorage;
 import com.mrcrayfish.vehicle.common.inventory.StorageInventory;
 import com.mrcrayfish.vehicle.entity.TrailerEntity;
+import com.mrcrayfish.vehicle.init.ModEntities;
 import com.mrcrayfish.vehicle.item.SprayCanItem;
 import com.mrcrayfish.vehicle.network.PacketHandler;
 import com.mrcrayfish.vehicle.network.message.MessageAttachTrailer;
-import com.mrcrayfish.vehicle.network.message.MessageSyncInventory;
+import com.mrcrayfish.vehicle.network.message.MessageSyncStorage;
 import com.mrcrayfish.vehicle.util.InventoryUtil;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.IGrowable;
@@ -27,18 +28,14 @@ import net.minecraft.util.ActionResultType;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.vector.Vector3d;
-import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.StringTextComponent;
 import net.minecraft.world.World;
 import net.minecraft.world.server.ServerWorld;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.common.util.Constants;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.fml.network.NetworkHooks;
 import net.minecraftforge.fml.network.PacketDistributor;
 
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -46,12 +43,7 @@ import java.util.Map;
  */
 public class FertilizerTrailerEntity extends TrailerEntity implements IStorage
 {
-    private static final EntityRayTracer.RayTracePart CONNECTION_BOX = new EntityRayTracer.RayTracePart(createScaledBoundingBox(-7 * 0.0625, 6.2 * 0.0625, 6 * 0.0625, 7 * 0.0625, 8.4 * 0.0625F, 18 * 0.0625, 1.1));
-    private static final Map<EntityRayTracer.RayTracePart, EntityRayTracer.TriangleRayTraceList> interactionBoxMapStatic = DistExecutor.callWhenOn(Dist.CLIENT, () -> () -> {
-        Map<EntityRayTracer.RayTracePart, EntityRayTracer.TriangleRayTraceList> map = new HashMap<>();
-        map.put(CONNECTION_BOX, EntityRayTracer.boxToTriangles(CONNECTION_BOX.getBox(), null));
-        return map;
-    });
+    private static final String INVENTORY_STORAGE_KEY = "Inventory";
 
     private int inventoryTimer;
     private StorageInventory inventory;
@@ -61,11 +53,6 @@ public class FertilizerTrailerEntity extends TrailerEntity implements IStorage
     {
         super(type, worldIn);
         this.initInventory();
-    }
-
-    public boolean canBeColored()
-    {
-        return true;
     }
 
     @Override
@@ -80,7 +67,7 @@ public class FertilizerTrailerEntity extends TrailerEntity implements IStorage
         ItemStack heldItem = player.getItemInHand(hand);
         if((heldItem.isEmpty() || !(heldItem.getItem() instanceof SprayCanItem)) && player instanceof ServerPlayerEntity)
         {
-            NetworkHooks.openGui((ServerPlayerEntity) player, this.getInventory(), buffer -> buffer.writeVarInt(this.getId()));
+            IStorage.openStorage((ServerPlayerEntity) player, this, INVENTORY_STORAGE_KEY);
             return ActionResultType.SUCCESS;
         }
         return super.interact(player, hand);
@@ -91,10 +78,10 @@ public class FertilizerTrailerEntity extends TrailerEntity implements IStorage
     {
         super.tick();
 
-        if(!level.isClientSide && Config.SERVER.trailerInventorySyncCooldown.get() > 0 && this.inventoryTimer++ == Config.SERVER.trailerInventorySyncCooldown.get())
+        if(!this.level.isClientSide() && Config.SERVER.trailerInventorySyncCooldown.get() > 0 && this.inventoryTimer++ == Config.SERVER.trailerInventorySyncCooldown.get())
         {
             this.inventoryTimer = 0;
-            PacketHandler.instance.send(PacketDistributor.TRACKING_ENTITY.with(() -> this), new MessageSyncInventory(this.getId(), this.inventory));
+            PacketHandler.getPlayChannel().send(PacketDistributor.TRACKING_ENTITY.with(() -> this), new MessageSyncStorage(this, INVENTORY_STORAGE_KEY));
         }
     }
 
@@ -152,9 +139,9 @@ public class FertilizerTrailerEntity extends TrailerEntity implements IStorage
 
     private ItemStack getFertilizer()
     {
-        for(int i = 0; i < inventory.getContainerSize(); i++)
+        for(int i = 0; i < this.inventory.getContainerSize(); i++)
         {
-            ItemStack stack = inventory.getItem(i);
+            ItemStack stack = this.inventory.getItem(i);
             if(!stack.isEmpty() && stack.getItem() instanceof BoneMealItem)
             {
                 return stack;
@@ -168,7 +155,7 @@ public class FertilizerTrailerEntity extends TrailerEntity implements IStorage
         if(storageTrailer == null)
             return ItemStack.EMPTY;
 
-        if(storageTrailer.getInventory() != null)
+        if(storageTrailer.getStorageInventories() != null)
         {
             StorageInventory storage = storageTrailer.getInventory();
             for(int i = 0; i < storage.getContainerSize(); i++)
@@ -192,10 +179,10 @@ public class FertilizerTrailerEntity extends TrailerEntity implements IStorage
     protected void readAdditionalSaveData(CompoundNBT compound)
     {
         super.readAdditionalSaveData(compound);
-        if(compound.contains("Inventory", Constants.NBT.TAG_LIST))
+        if(compound.contains(INVENTORY_STORAGE_KEY, Constants.NBT.TAG_LIST))
         {
             this.initInventory();
-            InventoryUtil.readInventoryToNBT(compound, "Inventory", this.inventory);
+            InventoryUtil.readInventoryToNBT(compound, INVENTORY_STORAGE_KEY, this.inventory);
         }
     }
 
@@ -205,14 +192,15 @@ public class FertilizerTrailerEntity extends TrailerEntity implements IStorage
         super.addAdditionalSaveData(compound);
         if(this.inventory != null)
         {
-            InventoryUtil.writeInventoryToNBT(compound, "Inventory", this.inventory);
+            InventoryUtil.writeInventoryToNBT(compound, INVENTORY_STORAGE_KEY, this.inventory);
         }
     }
 
     private void initInventory()
     {
         StorageInventory original = this.inventory;
-        this.inventory = new StorageInventory(this, 27);
+        this.inventory = new StorageInventory(this, this.getDisplayName(), 3, stack ->
+                !stack.isEmpty() && stack.getItem() instanceof BoneMealItem);
         // Copies the inventory if it exists already over to the new instance
         if(original != null)
         {
@@ -231,62 +219,33 @@ public class FertilizerTrailerEntity extends TrailerEntity implements IStorage
     protected void onVehicleDestroyed(LivingEntity entity)
     {
         super.onVehicleDestroyed(entity);
-        if(inventory != null)
+        if(this.inventory != null)
         {
-            InventoryHelper.dropContents(level, this, inventory);
+            InventoryHelper.dropContents(this.level, this, this.inventory);
         }
     }
 
     @Override
+    public Map<String, StorageInventory> getStorageInventories()
+    {
+        return ImmutableMap.of(INVENTORY_STORAGE_KEY, this.inventory);
+    }
+
     public StorageInventory getInventory()
     {
         return this.inventory;
     }
 
-    @Override
-    public double getHitchOffset()
-    {
-        return -17.0 * 1.1;
-    }
-
-    @Override
     @OnlyIn(Dist.CLIENT)
-    public Map<EntityRayTracer.RayTracePart, EntityRayTracer.TriangleRayTraceList> getStaticInteractionBoxMap()
+    public static void registerInteractionBoxes()
     {
-        return interactionBoxMapStatic;
-    }
-
-    @Override
-    @OnlyIn(Dist.CLIENT)
-    public List<EntityRayTracer.RayTracePart> getApplicableInteractionBoxes()
-    {
-        return ImmutableList.of(CONNECTION_BOX);
-    }
-
-    @Override
-    @OnlyIn(Dist.CLIENT)
-    public boolean processHit(EntityRayTracer.RayTraceResultRotated result, boolean rightClick)
-    {
-        if(rightClick)
-        {
-            if(result.getPartHit() == CONNECTION_BOX)
-            {
-                PacketHandler.instance.sendToServer(new MessageAttachTrailer(this.getId(), Minecraft.getInstance().player.getId()));
-                return true;
+        EntityRayTracer.instance().registerInteractionBox(ModEntities.FERTILIZER.get(), () -> {
+            return createScaledBoundingBox(-7.0, 1.5, 7.0, 7.0, 3.5, 18.0, 0.0625);
+        }, (entity, rightClick) -> {
+            if(rightClick) {
+                PacketHandler.getPlayChannel().sendToServer(new MessageAttachTrailer(entity.getId()));
+                Minecraft.getInstance().player.swing(Hand.MAIN_HAND);
             }
-        }
-        return super.processHit(result, rightClick);
-    }
-
-    @Override
-    public boolean isStorageItem(ItemStack stack)
-    {
-        return !stack.isEmpty() && stack.getItem() instanceof BoneMealItem;
-    }
-
-    @Override
-    public ITextComponent getStorageName()
-    {
-        return this.getDisplayName();
+        }, entity -> true);
     }
 }

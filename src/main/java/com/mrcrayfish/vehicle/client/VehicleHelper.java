@@ -9,15 +9,16 @@ import com.mrcrayfish.vehicle.client.audio.MovingSoundHornRiding;
 import com.mrcrayfish.vehicle.client.audio.MovingSoundVehicle;
 import com.mrcrayfish.vehicle.client.audio.MovingSoundVehicleRiding;
 import com.mrcrayfish.vehicle.entity.HelicopterEntity;
-import com.mrcrayfish.vehicle.entity.PlaneEntity;
 import com.mrcrayfish.vehicle.entity.PoweredVehicleEntity;
+import com.mrcrayfish.vehicle.init.ModParticleTypes;
 import net.minecraft.block.BlockState;
-import net.minecraft.client.GameSettings;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.audio.ISound;
 import net.minecraft.client.audio.ITickableSound;
 import net.minecraft.client.audio.SimpleSound;
 import net.minecraft.client.particle.DiggingParticle;
+import net.minecraft.client.particle.Particle;
+import net.minecraft.client.settings.PointOfView;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
@@ -25,7 +26,10 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.SoundEvent;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.vector.Vector3d;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.event.EntityViewRenderEvent;
 
 import java.util.HashMap;
@@ -65,7 +69,7 @@ public class VehicleHelper
                     Minecraft.getInstance().getSoundManager().play(new MovingSoundVehicle(vehicle));
                 }
             }
-            if(vehicle.getHornSound() != null && !player.equals(Minecraft.getInstance().player))
+            if(vehicle.hasHorn() && vehicle.getHornSound() != null && !player.equals(Minecraft.getInstance().player))
             {
                 ITickableSound sound = soundMap.get(SoundType.HORN);
                 if(sound == null || sound.isStopped() || !Minecraft.getInstance().getSoundManager().isActive(sound))
@@ -113,144 +117,36 @@ public class VehicleHelper
         event.setCanceled(true);*/
     }
 
-    public static PoweredVehicleEntity.AccelerationDirection getAccelerationDirection(LivingEntity entity)
+    @OnlyIn(Dist.CLIENT)
+    public static float getSteeringAngle(PoweredVehicleEntity vehicle)
     {
-        if(ClientHandler.isControllableLoaded())
-        {
-            Controller controller = Controllable.getController();
-            if(controller != null)
-            {
-                if(Config.CLIENT.useTriggers.get())
-                {
-                    if(controller.getRTriggerValue() != 0.0F && controller.getLTriggerValue() == 0.0F)
-                    {
-                        return PoweredVehicleEntity.AccelerationDirection.FORWARD;
-                    }
-                    else if(controller.getLTriggerValue() != 0.0F && controller.getRTriggerValue() == 0.0F)
-                    {
-                        return PoweredVehicleEntity.AccelerationDirection.REVERSE;
-                    }
-                }
-
-                boolean forward = controller.getButtonsStates().getState(Buttons.A);
-                boolean reverse = controller.getButtonsStates().getState(Buttons.B);
-                if(forward && reverse)
-                {
-                    return PoweredVehicleEntity.AccelerationDirection.CHARGING;
-                }
-                else if(forward)
-                {
-                    return PoweredVehicleEntity.AccelerationDirection.FORWARD;
-                }
-                else if(reverse)
-                {
-                    return PoweredVehicleEntity.AccelerationDirection.REVERSE;
-                }
-            }
-        }
-
-        GameSettings settings = Minecraft.getInstance().options;
-        boolean forward = settings.keyUp.isDown();
-        boolean reverse = settings.keyDown.isDown();
-        if(forward && reverse)
-        {
-            return PoweredVehicleEntity.AccelerationDirection.CHARGING;
-        }
-        else if(forward)
-        {
-            return PoweredVehicleEntity.AccelerationDirection.FORWARD;
-        }
-        else if(reverse)
-        {
-            return PoweredVehicleEntity.AccelerationDirection.REVERSE;
-        }
-
-        return PoweredVehicleEntity.AccelerationDirection.fromEntity(entity);
-    }
-
-    public static PoweredVehicleEntity.TurnDirection getTurnDirection(LivingEntity entity)
-    {
-        if(ClientHandler.isControllableLoaded())
-        {
-            Controller controller = Controllable.getController();
-            if(controller != null)
-            {
-                if(controller.getLThumbStickXValue() > 0.0F)
-                {
-                    return PoweredVehicleEntity.TurnDirection.RIGHT;
-                }
-                if(controller.getLThumbStickXValue() < 0.0F)
-                {
-                    return PoweredVehicleEntity.TurnDirection.LEFT;
-                }
-                if(controller.getButtonsStates().getState(Buttons.DPAD_RIGHT))
-                {
-                    return PoweredVehicleEntity.TurnDirection.RIGHT;
-                }
-                if(controller.getButtonsStates().getState(Buttons.DPAD_LEFT))
-                {
-                    return PoweredVehicleEntity.TurnDirection.LEFT;
-                }
-            }
-        }
-        if(entity.xxa < 0)
-        {
-            return PoweredVehicleEntity.TurnDirection.RIGHT;
-        }
-        else if(entity.xxa > 0)
-        {
-            return PoweredVehicleEntity.TurnDirection.LEFT;
-        }
-        return PoweredVehicleEntity.TurnDirection.FORWARD;
-    }
-
-    public static float getTargetTurnAngle(PoweredVehicleEntity vehicle, boolean drifting)
-    {
-        PoweredVehicleEntity.TurnDirection direction = vehicle.getTurnDirection();
+        float steeringAngle = vehicle.getSteeringAngle();
         if(vehicle.getControllingPassenger() != null)
         {
+            Entity entity = vehicle.getControllingPassenger();
+            if(!(entity instanceof LivingEntity))
+                return 0F;
+
+            float strength = 0.25F * MathHelper.clamp(1.0F - (float) vehicle.getSpeed() / 30F, 0.2F, 1.0F);
+
             if(ClientHandler.isControllableLoaded())
             {
                 Controller controller = Controllable.getController();
-                if(controller != null)
+                if(Controllable.getInput().isControllerInUse() && controller != null)
                 {
-                    float turnNormal = controller.getLThumbStickXValue();
-                    if(turnNormal != 0.0F)
-                    {
-                        float newTurnAngle = vehicle.turnAngle + ((vehicle.getMaxTurnAngle() * -turnNormal) - vehicle.turnAngle) * 0.15F;
-                        if(Math.abs(newTurnAngle) > vehicle.getMaxTurnAngle())
-                        {
-                            return vehicle.getMaxTurnAngle() * direction.getDir();
-                        }
-                        return newTurnAngle;
-                    }
+                    float leftStick = -MathHelper.clamp(controller.getLThumbStickXValue(), -1.0F, 1.0F);
+                    return steeringAngle + (vehicle.getMaxSteeringAngle() * leftStick - steeringAngle) * strength;
                 }
             }
 
-            if(direction != PoweredVehicleEntity.TurnDirection.FORWARD)
-            {
-                float amount = direction.getDir() * vehicle.getTurnSensitivity() * Math.max(0.65F, 1.0F - Math.abs(vehicle.getSpeed() / 20F));
-                if(drifting)
-                {
-                    amount *= 0.45F;
-                }
-                float newTurnAngle = vehicle.turnAngle + amount;
-                if(Math.abs(newTurnAngle) > vehicle.getMaxTurnAngle())
-                {
-                    return vehicle.getMaxTurnAngle() * direction.getDir();
-                }
-                return newTurnAngle;
-            }
+            LivingEntity livingEntity = (LivingEntity) entity;
+            float turnValue = MathHelper.clamp(livingEntity.xxa, -1.0F, 1.0F);
+            return steeringAngle + (vehicle.getMaxSteeringAngle() * turnValue - steeringAngle) * strength * 0.75F;
         }
-
-        if(drifting)
-        {
-            return vehicle.turnAngle * 0.95F;
-        }
-        return vehicle.turnAngle * 0.85F;
+        return steeringAngle * 0.85F;
     }
 
-    public static boolean isDrifting()
+    public static boolean isHandbraking()
     {
         if(ClientHandler.isControllableLoaded())
         {
@@ -282,36 +178,20 @@ public class VehicleHelper
         return KeyBinds.KEY_HORN.isDown();
     }
 
-    public static PlaneEntity.FlapDirection getFlapDirection()
+    public static float getLift()
     {
-        boolean flapUp = Minecraft.getInstance().options.keyJump.isDown();
-        boolean flapDown = Minecraft.getInstance().options.keySprint.isDown();
+        float up = Minecraft.getInstance().options.keyJump.isDown() ? 1.0F : 0F;
+        float down = Minecraft.getInstance().options.keySprint.isDown() ? -1.0F : 0F;
         if(ClientHandler.isControllableLoaded())
         {
             Controller controller = Controllable.getController();
-            if(controller != null)
+            if(controller != null && Controllable.getInput().isControllerInUse())
             {
-                flapUp |= controller.getButtonsStates().getState(Buttons.RIGHT_BUMPER);
-                flapDown |= controller.getButtonsStates().getState(Buttons.LEFT_BUMPER);
+                up = controller.getButtonsStates().getState(Buttons.RIGHT_BUMPER) ? 1.0F : up;
+                down = controller.getButtonsStates().getState(Buttons.LEFT_BUMPER) ? -1.0F : down;
             }
         }
-        return PlaneEntity.FlapDirection.fromInput(flapUp, flapDown);
-    }
-
-    public static HelicopterEntity.AltitudeChange getAltitudeChange()
-    {
-        boolean flapUp = Minecraft.getInstance().options.keyJump.isDown();
-        boolean flapDown = Minecraft.getInstance().options.keySprint.isDown();
-        if(ClientHandler.isControllableLoaded())
-        {
-            Controller controller = Controllable.getController();
-            if(controller != null)
-            {
-                flapUp |= controller.getButtonsStates().getState(Buttons.RIGHT_BUMPER);
-                flapDown |= controller.getButtonsStates().getState(Buttons.LEFT_BUMPER);
-            }
-        }
-        return HelicopterEntity.AltitudeChange.fromInput(flapUp, flapDown);
+        return up + down;
     }
 
     public static float getTravelDirection(HelicopterEntity vehicle)
@@ -331,7 +211,8 @@ public class VehicleHelper
             }
         }
 
-        PoweredVehicleEntity.AccelerationDirection accelerationDirection = vehicle.getAcceleration();
+        //TODO fix keyboard movement for heli
+        /*PoweredVehicleEntity.AccelerationDirection accelerationDirection = vehicle.getAcceleration();
         PoweredVehicleEntity.TurnDirection turnDirection = vehicle.getTurnDirection();
         if(vehicle.getControllingPassenger() != null)
         {
@@ -347,7 +228,7 @@ public class VehicleHelper
             {
                 return vehicle.yRot + turnDirection.getDir() * -90F;
             }
-        }
+        }*/
         return vehicle.yRot;
     }
 
@@ -366,35 +247,39 @@ public class VehicleHelper
                 }
             }
         }
-        return helicopter.getAcceleration() != PoweredVehicleEntity.AccelerationDirection.NONE || helicopter.getTurnDirection() != PoweredVehicleEntity.TurnDirection.FORWARD ? 1.0F : 0.0F;
+        return 0F; //TODO fix heli travel speed
+        //return helicopter.getAcceleration() != PoweredVehicleEntity.AccelerationDirection.NONE || helicopter.getTurnDirection() != PoweredVehicleEntity.TurnDirection.FORWARD ? 1.0F : 0.0F;
     }
 
-    public static float getPower(PoweredVehicleEntity vehicle)
+    @OnlyIn(Dist.CLIENT)
+    public static float getThrottle(LivingEntity livingEntity)
     {
         if(ClientHandler.isControllableLoaded() && Config.CLIENT.useTriggers.get())
         {
             Controller controller = Controllable.getController();
             if(controller != null)
             {
-                PoweredVehicleEntity.AccelerationDirection accelerationDirection = vehicle.getAcceleration();
-                if(accelerationDirection == PoweredVehicleEntity.AccelerationDirection.FORWARD)
+                //Maybe add a dead zone option to controllable for triggers
+                boolean forward = MathHelper.clamp(controller.getRTriggerValue(), 0.0F, 1.0F) > 0.1F;
+                boolean reverse = MathHelper.clamp(controller.getLTriggerValue(), 0.0F, 1.0F) > 0.1F;
+                if(forward && !reverse)
                 {
-                    return controller.getRTriggerValue();
+                    return (controller.getRTriggerValue() - 0.1F) / 0.9F;
                 }
-                else if(accelerationDirection == PoweredVehicleEntity.AccelerationDirection.REVERSE)
+                else if(!forward && reverse)
                 {
-                    return controller.getLTriggerValue();
+                    return -(controller.getLTriggerValue() - 0.1F) / 0.9F;
                 }
             }
         }
-        return 1.0F;
+        return MathHelper.clamp(livingEntity.zza, -1.0F, 1.0F);
     }
 
-    public static boolean canApplyVehicleYaw(Entity passenger)
+    public static boolean canFollowVehicleOrientation(Entity passenger)
     {
         if(passenger.equals(Minecraft.getInstance().player))
         {
-            return Config.CLIENT.rotateCameraWithVehicle.get();
+            return Config.CLIENT.followVehicleOrientation.get();
         }
         return false;
     }
@@ -410,6 +295,30 @@ public class VehicleHelper
             particle.setPower((float) motion.length());
             mc.particleEngine.add(particle);
         }
+    }
+
+    public static void spawnSmokeParticle(double x, double y, double z, Vector3d motion)
+    {
+        Minecraft mc = Minecraft.getInstance();
+        ClientWorld world = mc.level;
+        if(world != null)
+        {
+            Particle particle = mc.particleEngine.createParticle(ModParticleTypes.TYRE_SMOKE.get(), x, y, z, motion.x, motion.y, motion.z);
+            if(particle != null)
+            {
+                mc.particleEngine.add(particle);
+            }
+        }
+    }
+
+    public static boolean isThirdPersonBack()
+    {
+        return Minecraft.getInstance().options.getCameraType() == PointOfView.THIRD_PERSON_BACK;
+    }
+
+    public static boolean isThirdPersonFront()
+    {
+        return Minecraft.getInstance().options.getCameraType() == PointOfView.THIRD_PERSON_FRONT;
     }
 
     private enum SoundType

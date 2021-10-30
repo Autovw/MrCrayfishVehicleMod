@@ -1,10 +1,8 @@
 package com.mrcrayfish.vehicle.entity.vehicle;
 
 import com.mrcrayfish.vehicle.entity.BoatEntity;
-import com.mrcrayfish.vehicle.init.ModSounds;
 import net.minecraft.entity.EntityType;
 import net.minecraft.particles.ParticleTypes;
-import net.minecraft.util.SoundEvent;
 import net.minecraft.world.World;
 
 /**
@@ -15,23 +13,14 @@ public class JetSkiEntity extends BoatEntity
     public JetSkiEntity(EntityType<? extends JetSkiEntity> type, World worldIn)
     {
         super(type, worldIn);
-        this.setMaxSpeed(15F);
-        this.setTurnSensitivity(10);
-        this.setFuelConsumption(0.5F);
-    }
-
-    @Override
-    public FuelPortType getFuelPortType()
-    {
-        return FuelPortType.SMALL;
     }
 
     @Override
     public void createParticles()
     {
-        if(state == State.IN_WATER)
+        if(this.state == State.IN_WATER)
         {
-            if(this.getAcceleration() == AccelerationDirection.FORWARD)
+            if(this.getThrottle() > 0)
             {
                 for(int i = 0; i < 5; i++)
                 {
@@ -46,34 +35,4 @@ public class JetSkiEntity extends BoatEntity
         }
     }
 
-    @Override
-    public SoundEvent getEngineSound()
-    {
-        return ModSounds.ENTITY_SPEED_BOAT_ENGINE.get();
-    }
-
-    @Override
-    public float getMinEnginePitch()
-    {
-        return 1.2F;
-    }
-
-    @Override
-    public float getMaxEnginePitch()
-    {
-        return 2.2F;
-    }
-
-    @Override
-    public boolean canBeColored()
-    {
-        return true;
-    }
-
-    //TODO remove and add key support
-    @Override
-    public boolean isLockable()
-    {
-        return false;
-    }
 }

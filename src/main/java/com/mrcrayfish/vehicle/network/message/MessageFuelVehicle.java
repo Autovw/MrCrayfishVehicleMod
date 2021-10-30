@@ -1,7 +1,6 @@
 package com.mrcrayfish.vehicle.network.message;
 
-import com.mrcrayfish.vehicle.entity.PoweredVehicleEntity;
-import net.minecraft.entity.Entity;
+import com.mrcrayfish.vehicle.network.play.ServerPlayHandler;
 import net.minecraft.entity.player.ServerPlayerEntity;
 import net.minecraft.network.PacketBuffer;
 import net.minecraft.util.Hand;
@@ -40,17 +39,24 @@ public class MessageFuelVehicle implements IMessage<MessageFuelVehicle>
     @Override
     public void handle(MessageFuelVehicle message, Supplier<NetworkEvent.Context> supplier)
     {
-        supplier.get().enqueueWork(() -> {
+        supplier.get().enqueueWork(() ->
+        {
             ServerPlayerEntity player = supplier.get().getSender();
             if(player != null)
             {
-                Entity targetEntity = player.level.getEntity(message.entityId);
-                if(targetEntity instanceof PoweredVehicleEntity)
-                {
-                    ((PoweredVehicleEntity) targetEntity).fuelVehicle(player, message.hand);
-                }
+                ServerPlayHandler.handleFuelVehicleMessage(player, message);
             }
         });
         supplier.get().setPacketHandled(true);
+    }
+
+    public int getEntityId()
+    {
+        return this.entityId;
+    }
+
+    public Hand getHand()
+    {
+        return this.hand;
     }
 }

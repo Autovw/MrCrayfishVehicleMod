@@ -1,0 +1,61 @@
+{
+    "canBePainted": true,
+    "displayTransform": {
+        "scale": 0.85
+    },
+    "bodyTransform": {
+        "translate": [ 0.0, 0.0, -8.0 ],
+        "scale": 1.8
+    },
+    "wheels": [
+        {
+            "axle": "front",
+            "offset": [ 0.0, -4.5, 20.25 ],
+            "scale": [ 0.45, 0.45, 0.45 ]
+        },
+        {
+            "offset": [ 6.5, -4.5, 1.5 ],
+            "scale": [ 0.45, 0.45, 0.45 ]
+        },
+        {
+            "offset": [ -6.5, -4.5, 1.5 ],
+            "scale": [ 0.45, 0.45, 0.45 ]
+        }
+    ],
+    "seats": [
+        {
+            "driver": true
+        }
+    ],
+    "camera": {
+        "position": [ 0.0, 2.0, 0.0 ],
+        "distance": 7.0
+    },
+    "extended": {
+        "vehicle:powered": {
+            "maxSteeringAngle": 25.0,
+            "energyCapacity": 75000.0,
+            "energyConsumptionPerTick": 1.0,
+            "engineType": "vehicle:large_motor",
+            "enginePower": 24.0,
+            "fuelFillerTransform": {
+                "translate": [ -4.35, 6.0, -6.0 ],
+                "rotation": [ 0.0, -112.5, 0.0 ],
+                "scale": 0.5
+            },
+            "ignitionTransform": {
+                "translate": [ 0.0, 3.75, 12.5 ],
+                "rotation": [ -67.5, 0.0, 0.0 ],
+                "scale": 0.5
+            },
+            "frontAxleOffset": 20.25,
+            "rearAxleOffset": 1.5,
+            "engineSound": "vehicle:entity.sports_plane.engine"
+        },
+        "vehicle:plane": {
+            "flapSensitivity": 0.1,
+            "elevatorSensitivity": 0.075,
+            "maxTurnAngle": 2.0
+        }
+    }
+}

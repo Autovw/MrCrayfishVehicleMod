@@ -5,40 +5,52 @@ package com.mrcrayfish.vehicle.entity;
  */
 public enum WheelType implements IWheelType
 {
-    STANDARD(0.9F, 0.8F, 0.5F),
-    SPORTS(1.0F, 0.75F, 0.5F),
-    RACING(1.1F, 0.7F, 0.5F),
-    OFF_ROAD(0.75F, 1.0F, 0.85F),
-    SNOW(0.75F, 0.85F, 0.95F),
-    ALL_TERRAIN(0.85F, 0.85F, 0.85F),
-    PLASTIC(0.5F, 0.5F, 0.5F);
+    STANDARD(1.1F, 1.3F, 1.7F, 0.8F, 0.05F),
+    SPORTS(0.8F, 1.5F, 2.2F, 0.9F, 0.15F),
+    OFF_ROAD(1.2F, 0.9F, 1.1F, 0.8F, 0.2F);
 
-    private final float roadMultiplier;
-    private final float dirtMultiplier;
-    private final float snowMultiplier;
+    private final float roadFrictionFactor;
+    private final float dirtFrictionFactor;
+    private final float snowFrictionFactor;
+    private final float baseTraction;
+    private final float slideTraction;
 
-    WheelType(float roadMultiplier, float dirtMultiplier, float snowMultiplier)
+    WheelType(float roadFrictionFactor, float dirtFrictionFactor, float snowFrictionFactor, float baseTraction, float slideTraction)
     {
-        this.roadMultiplier = roadMultiplier;
-        this.dirtMultiplier = dirtMultiplier;
-        this.snowMultiplier = snowMultiplier;
+        this.roadFrictionFactor = roadFrictionFactor;
+        this.dirtFrictionFactor = dirtFrictionFactor;
+        this.snowFrictionFactor = snowFrictionFactor;
+        this.baseTraction = baseTraction;
+        this.slideTraction = slideTraction;
     }
 
     @Override
-    public float getRoadMultiplier()
+    public float getRoadFrictionFactor()
     {
-        return this.roadMultiplier;
+        return this.roadFrictionFactor;
     }
 
     @Override
-    public float getDirtMultiplier()
+    public float getDirtFrictionFactor()
     {
-        return this.dirtMultiplier;
+        return this.dirtFrictionFactor;
     }
 
     @Override
-    public float getSnowMultiplier()
+    public float getSnowFrictionFactor()
     {
-        return this.snowMultiplier;
+        return this.snowFrictionFactor;
+    }
+
+    @Override
+    public float getBaseTraction()
+    {
+        return this.baseTraction;
+    }
+
+    @Override
+    public float getSlideTraction()
+    {
+        return this.slideTraction;
     }
 }

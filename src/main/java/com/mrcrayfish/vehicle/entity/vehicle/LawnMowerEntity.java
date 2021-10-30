@@ -2,7 +2,6 @@ package com.mrcrayfish.vehicle.entity.vehicle;
 
 import com.mrcrayfish.vehicle.entity.LandVehicleEntity;
 import com.mrcrayfish.vehicle.entity.trailer.StorageTrailerEntity;
-import com.mrcrayfish.vehicle.init.ModSounds;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
@@ -12,7 +11,6 @@ import net.minecraft.entity.item.ItemEntity;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.SoundCategory;
-import net.minecraft.util.SoundEvent;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
@@ -30,14 +28,12 @@ public class LawnMowerEntity extends LandVehicleEntity
     public LawnMowerEntity(EntityType<? extends LawnMowerEntity> type, World worldIn)
     {
         super(type, worldIn);
-        this.setMaxSpeed(8);
-        this.setFuelCapacity(5000F);
     }
 
     @Override
-    public void updateVehicle()
+    public void onVehicleTick()
     {
-        super.updateVehicle();
+        super.onVehicleTick();
 
         if(!level.isClientSide && this.getControllingPassenger() != null)
         {
@@ -113,30 +109,5 @@ public class LawnMowerEntity extends LandVehicleEntity
             itemEntity.setDeltaMovement(-this.getDeltaMovement().x / 4.0, random.nextGaussian() * 0.05D + 0.2D, -this.getDeltaMovement().z / 4.0);
             worldIn.addFreshEntity(itemEntity);
         }
-    }
-
-    @Override
-    public SoundEvent getEngineSound()
-    {
-        return ModSounds.ENTITY_ATV_ENGINE.get();
-    }
-
-    @Override
-    public boolean canBeColored()
-    {
-        return true;
-    }
-
-    @Override
-    public boolean canTowTrailer()
-    {
-        return true;
-    }
-
-    //TODO remove and add key support
-    @Override
-    public boolean isLockable()
-    {
-        return false;
     }
 }

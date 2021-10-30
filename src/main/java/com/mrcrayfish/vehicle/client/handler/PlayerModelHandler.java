@@ -9,7 +9,7 @@ import com.mrcrayfish.vehicle.client.render.VehicleRenderRegistry;
 import com.mrcrayfish.vehicle.common.Seat;
 import com.mrcrayfish.vehicle.entity.LandVehicleEntity;
 import com.mrcrayfish.vehicle.entity.VehicleEntity;
-import com.mrcrayfish.vehicle.entity.VehicleProperties;
+import com.mrcrayfish.vehicle.entity.properties.VehicleProperties;
 import com.mrcrayfish.vehicle.init.ModDataKeys;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.entity.model.PlayerModel;
@@ -17,7 +17,6 @@ import net.minecraft.client.settings.PointOfView;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.vector.Vector3d;
 import net.minecraft.util.math.vector.Vector3f;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -76,20 +75,16 @@ public class PlayerModelHandler
             return;
 
         VehicleProperties properties = landVehicle.getProperties();
-        if(properties.getRearAxelVec() == null)
-            return;
-
         Seat seat = properties.getSeats().get(seatIndex);
-        Vector3d seatVec = seat.getPosition().add(0, properties.getAxleOffset() + properties.getWheelOffset(), 0).scale(properties.getBodyPosition().getScale()).scale(0.0625);
-        double vehicleScale = properties.getBodyPosition().getScale();
+        Vector3d seatVec = seat.getPosition().add(0, properties.getAxleOffset() + properties.getWheelOffset(), 0).scale(properties.getBodyTransform().getScale()).scale(0.0625);
+        double vehicleScale = properties.getBodyTransform().getScale();
         double playerScale = 32.0 / 30.0;
         double offsetX = -(seatVec.x * playerScale);
         double offsetY = (seatVec.y + player.getMyRidingOffset()) * playerScale + 24 * 0.0625 - properties.getWheelOffset() * 0.0625 * vehicleScale;
-        double offsetZ = (seatVec.z * playerScale) - properties.getRearAxelVec().z * 0.0625 * vehicleScale;
+        double offsetZ = (seatVec.z * playerScale) - landVehicle.getRearAxleOffset().z * 0.0625 * vehicleScale;
         matrixStack.translate(offsetX, offsetY, offsetZ);
-        float wheelieProgress = MathHelper.lerp(partialTicks, landVehicle.prevWheelieCount, landVehicle.wheelieCount) / 4F;
-        wheelieProgress = (float) (1.0 - Math.pow(1.0 - wheelieProgress, 2));
-        matrixStack.mulPose(Vector3f.XP.rotationDegrees(-30F * wheelieProgress));
+        float p = landVehicle.getWheelieProgress(partialTicks);
+        matrixStack.mulPose(Vector3f.XP.rotationDegrees(-30F * landVehicle.getBoostStrength() * p));
         matrixStack.translate(-offsetX, -offsetY, -offsetZ);
     }
 

@@ -29,7 +29,7 @@ public class InputHandler
         {
             if(minecraft.player.getVehicle() instanceof VehicleEntity)
             {
-                PacketHandler.instance.sendToServer(new MessageCycleSeats());
+                PacketHandler.getPlayChannel().sendToServer(new MessageCycleSeats());
             }
         }
 
@@ -38,9 +38,9 @@ public class InputHandler
             if(minecraft.player.getVehicle() instanceof VehicleEntity)
             {
                 VehicleEntity vehicle = (VehicleEntity) minecraft.player.getVehicle();
-                if(vehicle.canTowTrailer())
+                if(vehicle.canTowTrailers())
                 {
-                    PacketHandler.instance.sendToServer(new MessageHitchTrailer(vehicle.getTrailer() == null));
+                    PacketHandler.getPlayChannel().sendToServer(new MessageHitchTrailer(vehicle.getTrailer() == null));
                 }
             }
         }

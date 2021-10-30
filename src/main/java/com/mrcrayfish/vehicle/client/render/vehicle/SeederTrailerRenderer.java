@@ -1,19 +1,22 @@
 package com.mrcrayfish.vehicle.client.render.vehicle;
 
 import com.mojang.blaze3d.matrix.MatrixStack;
-import com.mrcrayfish.vehicle.client.EntityRayTracer;
 import com.mrcrayfish.vehicle.client.model.SpecialModels;
+import com.mrcrayfish.vehicle.client.raytrace.RayTraceTransforms;
+import com.mrcrayfish.vehicle.client.raytrace.TransformHelper;
 import com.mrcrayfish.vehicle.client.render.AbstractTrailerRenderer;
 import com.mrcrayfish.vehicle.client.render.Axis;
 import com.mrcrayfish.vehicle.common.inventory.StorageInventory;
-import com.mrcrayfish.vehicle.entity.VehicleProperties;
+import com.mrcrayfish.vehicle.entity.properties.VehicleProperties;
 import com.mrcrayfish.vehicle.entity.trailer.SeederTrailerEntity;
 import com.mrcrayfish.vehicle.util.RenderUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.IRenderTypeBuffer;
 import net.minecraft.client.renderer.model.ItemCameraTransforms;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.entity.EntityType;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.math.vector.Vector3f;
 
 import javax.annotation.Nullable;
 
@@ -24,9 +27,9 @@ public class SeederTrailerRenderer extends AbstractTrailerRenderer<SeederTrailer
 {
     protected final PropertyFunction<SeederTrailerEntity, StorageInventory> storageProperty = new PropertyFunction<>(SeederTrailerEntity::getInventory, null);
 
-    public SeederTrailerRenderer(VehicleProperties defaultProperties)
+    public SeederTrailerRenderer(EntityType<SeederTrailerEntity> type, VehicleProperties defaultProperties)
     {
-        super(defaultProperties);
+        super(type, defaultProperties);
     }
 
     @Override
@@ -34,8 +37,6 @@ public class SeederTrailerRenderer extends AbstractTrailerRenderer<SeederTrailer
     {
         //Render the body
         this.renderDamagedPart(vehicle, SpecialModels.SEEDER_TRAILER.getModel(), matrixStack, renderTypeBuffer, light);
-        this.renderWheel(vehicle, matrixStack, renderTypeBuffer, true, -17.5F * 0.0625F, -0.5F, 0.0F, 1.25F, partialTicks, light);
-        this.renderWheel(vehicle, matrixStack, renderTypeBuffer, false, 17.5F * 0.0625F, -0.5F, 0.0F, 1.25F, partialTicks, light);
 
         StorageInventory inventory = this.storageProperty.get(vehicle);
         if(inventory != null)
@@ -97,11 +98,7 @@ public class SeederTrailerRenderer extends AbstractTrailerRenderer<SeederTrailer
     {
         matrixStack.pushPose();
         matrixStack.translate(offsetX, -0.65, 0.0);
-        if(vehicle != null)
-        {
-            float wheelRotation = vehicle.prevWheelRotation + (vehicle.wheelRotation - vehicle.prevWheelRotation) * partialTicks;
-            matrixStack.mulPose(Axis.POSITIVE_X.rotationDegrees(-wheelRotation));
-        }
+        matrixStack.mulPose(Vector3f.XP.rotationDegrees(-this.getWheelRotation(vehicle, null, partialTicks)));
         matrixStack.scale(0.75F, 0.75F, 0.75F);
         RenderUtil.renderColoredModel(SpecialModels.SEED_SPIKER.getModel(), ItemCameraTransforms.TransformType.NONE, false, matrixStack, renderTypeBuffer, -1, light, OverlayTexture.NO_OVERLAY);
         matrixStack.popPose();
@@ -109,11 +106,11 @@ public class SeederTrailerRenderer extends AbstractTrailerRenderer<SeederTrailer
 
     @Nullable
     @Override
-    public EntityRayTracer.IRayTraceTransforms getRayTraceTransforms()
+    public RayTraceTransforms getRayTraceTransforms()
     {
         return (tracer, transforms, parts) ->
         {
-            EntityRayTracer.createTransformListForPart(SpecialModels.SEEDER_TRAILER, parts, transforms);
+            TransformHelper.createTransformListForPart(SpecialModels.SEEDER_TRAILER, parts, transforms);
         };
     }
 }

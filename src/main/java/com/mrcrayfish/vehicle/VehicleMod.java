@@ -3,19 +3,28 @@ package com.mrcrayfish.vehicle;
 import com.mrcrayfish.vehicle.client.ClientHandler;
 import com.mrcrayfish.vehicle.common.CommonEvents;
 import com.mrcrayfish.vehicle.common.FluidNetworkHandler;
-import com.mrcrayfish.vehicle.common.ItemLookup;
 import com.mrcrayfish.vehicle.common.entity.HeldVehicleDataHandler;
+import com.mrcrayfish.vehicle.crafting.RecipeType;
+import com.mrcrayfish.vehicle.crafting.WorkstationIngredient;
 import com.mrcrayfish.vehicle.datagen.LootTableGen;
 import com.mrcrayfish.vehicle.datagen.RecipeGen;
 import com.mrcrayfish.vehicle.datagen.VehiclePropertiesGen;
-import com.mrcrayfish.vehicle.entity.VehicleProperties;
+import com.mrcrayfish.vehicle.entity.properties.ExtendedProperties;
+import com.mrcrayfish.vehicle.entity.properties.HelicopterProperties;
+import com.mrcrayfish.vehicle.entity.properties.LandProperties;
+import com.mrcrayfish.vehicle.entity.properties.MotorcycleProperties;
+import com.mrcrayfish.vehicle.entity.properties.PlaneProperties;
+import com.mrcrayfish.vehicle.entity.properties.PoweredProperties;
+import com.mrcrayfish.vehicle.entity.properties.TrailerProperties;
+import com.mrcrayfish.vehicle.entity.properties.VehicleProperties;
 import com.mrcrayfish.vehicle.init.*;
 import com.mrcrayfish.vehicle.network.PacketHandler;
 import net.minecraft.data.DataGenerator;
 import net.minecraft.item.ItemGroup;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.common.data.ExistingFileHelper;
+import net.minecraftforge.common.crafting.CraftingHelper;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
@@ -51,6 +60,7 @@ public class VehicleMod
         ModEntities.REGISTER.register(eventBus);
         ModTileEntities.REGISTER.register(eventBus);
         ModContainers.REGISTER.register(eventBus);
+        ModParticleTypes.REGISTER.register(eventBus);
         ModSounds.REGISTER.register(eventBus);
         ModRecipeSerializers.REGISTER.register(eventBus);
         ModFluids.REGISTER.register(eventBus);
@@ -60,17 +70,25 @@ public class VehicleMod
         eventBus.addListener(this::onClientSetup);
         eventBus.addListener(this::onGatherData);
         MinecraftForge.EVENT_BUS.register(new CommonEvents());
+        MinecraftForge.EVENT_BUS.register(new ModCommands());
         MinecraftForge.EVENT_BUS.register(FluidNetworkHandler.instance());
+        ExtendedProperties.register(new ResourceLocation(Reference.MOD_ID, "powered"), PoweredProperties.class, PoweredProperties::new);
+        ExtendedProperties.register(new ResourceLocation(Reference.MOD_ID, "land"), LandProperties.class, LandProperties::new);
+        ExtendedProperties.register(new ResourceLocation(Reference.MOD_ID, "motorcycle"), MotorcycleProperties.class, MotorcycleProperties::new);
+        ExtendedProperties.register(new ResourceLocation(Reference.MOD_ID, "plane"), PlaneProperties.class, PlaneProperties::new);
+        ExtendedProperties.register(new ResourceLocation(Reference.MOD_ID, "helicopter"), HelicopterProperties.class, HelicopterProperties::new);
+        ExtendedProperties.register(new ResourceLocation(Reference.MOD_ID, "trailer"), TrailerProperties.class, TrailerProperties::new);
     }
 
     private void onCommonSetup(FMLCommonSetupEvent event)
     {
+        RecipeType.init();
         VehicleProperties.loadProperties();
-        PacketHandler.register();
+        PacketHandler.registerPlayMessage();
         HeldVehicleDataHandler.register();
-        ItemLookup.init();
         ModDataKeys.register();
         ModLootFunctions.init();
+        CraftingHelper.register(new ResourceLocation(Reference.MOD_ID, "workstation_ingredient"), WorkstationIngredient.Serializer.INSTANCE);
     }
 
     private void onClientSetup(FMLClientSetupEvent event)

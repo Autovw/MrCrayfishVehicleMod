@@ -1,10 +1,8 @@
 package com.mrcrayfish.vehicle.item;
 
 import com.mrcrayfish.vehicle.common.VehicleRegistry;
-import com.mrcrayfish.vehicle.entity.EngineTier;
 import com.mrcrayfish.vehicle.entity.IEngineTier;
 import com.mrcrayfish.vehicle.entity.IEngineType;
-import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -49,7 +47,7 @@ public class EngineItem extends PartItem
     @OnlyIn(Dist.CLIENT)
     public void appendHoverText(ItemStack stack, @Nullable World worldIn, List<ITextComponent> tooltip, ITooltipFlag flagIn)
     {
-        tooltip.add(new TranslationTextComponent("vehicle.engine_info.acceleration").append(": ").withStyle(TextFormatting.YELLOW).append(new StringTextComponent(this.tier.getAccelerationMultiplier() + "x").withStyle(TextFormatting.GRAY)));
+        tooltip.add(new TranslationTextComponent("vehicle.engine_info.acceleration").append(": ").withStyle(TextFormatting.YELLOW).append(new StringTextComponent(this.tier.getPowerMultiplier() + "x").withStyle(TextFormatting.GRAY)));
         tooltip.add(new TranslationTextComponent("vehicle.engine_info.additional_max_speed").append(": ").withStyle(TextFormatting.YELLOW).append(new StringTextComponent((this.tier.getAdditionalMaxSpeed()) + "bps").withStyle(TextFormatting.GRAY)));
     }
 }
