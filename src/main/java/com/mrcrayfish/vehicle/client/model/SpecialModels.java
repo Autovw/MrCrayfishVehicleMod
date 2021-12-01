@@ -56,10 +56,14 @@ public enum SpecialModels implements ISpecialModel
     DIRT_BIKE_BODY("dirt_bike/body"),
     DIRT_BIKE_HANDLES("dirt_bike/handles"),
 
-    ATV_BODY("atv_body"),
-    ATV_HANDLES("atv_handles"),
-    GO_KART_BODY("go_kart_body"),
+    /* Quad Bike */
+    QUAD_BIKE_BODY("quad_bike/body"),
+    QUAD_BIKE_HANDLES("quad_bike/handles"),
+
+    /* Go Kart */
+    GO_KART_BODY("go_kart/body"),
     GO_KART_STEERING_WHEEL("go_kart_steering_wheel"),
+
     JET_SKI_BODY("jet_ski_body"),
     LAWN_MOWER_BODY("lawn_mower_body"),
     SPORTS_PLANE("sports_plane_body"),
